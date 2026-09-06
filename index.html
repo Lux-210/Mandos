@@ -528,7 +528,7 @@ const PS5_MODELS = ["", "PS5", "PS5 Slim", "PS5 Pro"];
 
 // Para "consola de origen" además puede no haber venido con ninguna consola
 // (se compró el mando por separado, sin bundle).
-const CONSOLE_ORIGEN_OPTIONS = ["", "PS5", "PS5 Slim", "PS5 Pro", "Comprado por separado"];
+const CONSOLE_ORIGEN_OPTIONS = ["", "PS5", "PS5 Slim", "PS5 Pro", "Comprado"];
 
 // Edición del mando: sin especificar, normal, o limitada (con nombre propio).
 const EDITION_TYPES = [
@@ -805,13 +805,17 @@ function normalizeImportedControllers(data) {
       // compró por separado). "consolaActual": con qué consola se usa hoy
       // (puede ser distinta). Los datos exportados con una versión anterior
       // de la app solo tenían "ps5Model", que representaba la consola de
-      // origen: se migra para no perder lo ya cargado.
-      consolaOrigen:
-        raw && typeof raw.consolaOrigen === "string" && CONSOLE_ORIGEN_OPTIONS.includes(raw.consolaOrigen)
-          ? raw.consolaOrigen
-          : raw && typeof raw.ps5Model === "string" && CONSOLE_ORIGEN_OPTIONS.includes(raw.ps5Model)
-          ? raw.ps5Model
-          : "",
+      // origen: se migra para no perder lo ya cargado. La opción "Comprado
+      // por separado" se renombró a "Comprado": se migra también para no
+      // perder ese dato en mandos ya guardados.
+      consolaOrigen: (() => {
+        const migrarLegacy = (v) => (v === "Comprado por separado" ? "Comprado" : v);
+        const origen = raw && typeof raw.consolaOrigen === "string" ? migrarLegacy(raw.consolaOrigen) : null;
+        if (origen && CONSOLE_ORIGEN_OPTIONS.includes(origen)) return origen;
+        const legacy = raw && typeof raw.ps5Model === "string" ? migrarLegacy(raw.ps5Model) : null;
+        if (legacy && CONSOLE_ORIGEN_OPTIONS.includes(legacy)) return legacy;
+        return "";
+      })(),
       consolaActual: raw && typeof raw.consolaActual === "string" && PS5_MODELS.includes(raw.consolaActual) ? raw.consolaActual : "",
       edicionTipo:
         raw && typeof raw.edicionTipo === "string" && EDITION_TYPES.some((e) => e.value === raw.edicionTipo) ? raw.edicionTipo : "",
@@ -2232,7 +2236,7 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
             infoChipList(controller).map((chip) =>
               React.createElement(
                 "span",
-                { key: chip.key, className: "font-label inline-block truncate px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
+                { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
                 chip.text
               )
             )
@@ -2456,7 +2460,7 @@ function ControllerDetail({
             infoChipList(controller).map((chip) =>
               React.createElement(
                 "span",
-                { key: chip.key, className: "font-label inline-block truncate px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
+                { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
                 chip.text
               )
             )
