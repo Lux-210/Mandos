@@ -468,6 +468,20 @@ function Icon({ name, className, fill = "none", ...rest }) {
         React.createElement("circle", { cx: "16", cy: "14.5", r: "1" }),
         React.createElement("circle", { cx: "14", cy: "12.5", r: "1" })
       );
+    case "eye":
+      return React.createElement(
+        "svg", common,
+        React.createElement("path", { d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" }),
+        React.createElement("circle", { cx: "12", cy: "12", r: "3" })
+      );
+    case "eyeOff":
+      return React.createElement(
+        "svg", common,
+        React.createElement("path", { d: "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" }),
+        React.createElement("path", { d: "M14.084 14.158a3 3 0 0 1-4.242-4.242" }),
+        React.createElement("path", { d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" }),
+        React.createElement("path", { d: "m2 2 20 20" })
+      );
     default:
       return null;
   }
@@ -768,6 +782,8 @@ function emptyController() {
     colorHex: DEFAULT_COLOR_HEX,
     consolaOrigen: "",
     consolaActual: "",
+    origenVisible: true,
+    actualVisible: true,
     edicionTipo: "",
     edicionNombre: "",
     notes: "",
@@ -817,6 +833,12 @@ function normalizeImportedControllers(data) {
         return "";
       })(),
       consolaActual: raw && typeof raw.consolaActual === "string" && PS5_MODELS.includes(raw.consolaActual) ? raw.consolaActual : "",
+      // Visibilidad en la tarjeta de "Vino: ..." / "Actual: ...". Por
+      // defecto se muestran (true); los mandos guardados con una versión
+      // anterior de la app no tienen este campo y deben seguir mostrándose
+      // igual que antes, por eso solo se ocultan si el valor es false.
+      origenVisible: !(raw && raw.origenVisible === false),
+      actualVisible: !(raw && raw.actualVisible === false),
       edicionTipo:
         raw && typeof raw.edicionTipo === "string" && EDITION_TYPES.some((e) => e.value === raw.edicionTipo) ? raw.edicionTipo : "",
       edicionNombre: raw && typeof raw.edicionNombre === "string" ? raw.edicionNombre : "",
@@ -2185,8 +2207,8 @@ function ColorDot({ hex, className }) {
 //   "normal" no aporta información y no se marca).
 function infoChipList(controller) {
   const chips = [];
-  const origen = controller.consolaOrigen;
-  const actual = controller.consolaActual;
+  const origen = controller.origenVisible !== false ? controller.consolaOrigen : "";
+  const actual = controller.actualVisible !== false ? controller.consolaActual : "";
   if (origen && actual && origen !== actual) {
     chips.push({ key: "origen", text: "Vino: " + origen });
     chips.push({ key: "actual", text: "Actual: " + actual });
@@ -2864,12 +2886,31 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
   );
 }
 
+// Botón "ojo" para marcar si un dato de consola se muestra o no como chip en
+// la tarjeta del mando. Abierto = se muestra; tachado/cerrado = se oculta.
+function VisibilityToggle({ visible, onToggle, label }) {
+  return React.createElement(
+    "button",
+    {
+      type: "button",
+      onClick: onToggle,
+      title: visible ? "Se muestra en la tarjeta" : "Oculto en la tarjeta",
+      "aria-label": (visible ? "Ocultar " : "Mostrar ") + label + " en la tarjeta",
+      "aria-pressed": visible,
+      className: "p-1 -m-1 rounded transition-colors " + (visible ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-400"),
+    },
+    React.createElement(Icon, { name: visible ? "eye" : "eyeOff", className: "w-3.5 h-3.5" })
+  );
+}
+
 function ControllerModal({ mode, initial, onCancel, onSave }) {
   const [nombre, setNombre] = useState(initial.nombre);
   const [color, setColor] = useState(initial.color);
   const [colorHex, setColorHex] = useState(initial.colorHex || DEFAULT_COLOR_HEX);
   const [consolaOrigen, setConsolaOrigen] = useState(initial.consolaOrigen || "");
   const [consolaActual, setConsolaActual] = useState(initial.consolaActual || "");
+  const [origenVisible, setOrigenVisible] = useState(initial.origenVisible !== false);
+  const [actualVisible, setActualVisible] = useState(initial.actualVisible !== false);
   const [edicionTipo, setEdicionTipo] = useState(initial.edicionTipo || "");
   const [edicionNombre, setEdicionNombre] = useState(initial.edicionNombre || "");
   const [notes, setNotes] = useState(initial.notes || "");
@@ -2893,6 +2934,8 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
       colorHex,
       consolaOrigen,
       consolaActual,
+      origenVisible,
+      actualVisible,
       edicionTipo,
       edicionNombre: edicionTipo === "limitada" ? edicionNombre.trim() : "",
       notes: notes.trim(),
@@ -2963,7 +3006,12 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
         React.createElement(
           "div",
           null,
-          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Consola de origen (opcional)"),
+          React.createElement(
+            "div",
+            { className: "flex items-center justify-between gap-2 mb-1.5" },
+            React.createElement("label", { className: "font-label text-xs text-slate-500 uppercase tracking-wide" }, "Consola de origen (opcional)"),
+            React.createElement(VisibilityToggle, { visible: origenVisible, onToggle: () => setOrigenVisible((v) => !v), label: "consola de origen" })
+          ),
           React.createElement(
             "select",
             {
@@ -2977,7 +3025,12 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
         React.createElement(
           "div",
           null,
-          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Consola actual (opcional)"),
+          React.createElement(
+            "div",
+            { className: "flex items-center justify-between gap-2 mb-1.5" },
+            React.createElement("label", { className: "font-label text-xs text-slate-500 uppercase tracking-wide" }, "Consola actual (opcional)"),
+            React.createElement(VisibilityToggle, { visible: actualVisible, onToggle: () => setActualVisible((v) => !v), label: "consola actual" })
+          ),
           React.createElement(
             "select",
             {
