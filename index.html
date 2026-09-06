@@ -522,9 +522,20 @@ const COLOR_HEX_MAP = {
 };
 const DEFAULT_COLOR_HEX = "#64748b";
 
-// Modelo de PS5 con el que vino el mando. Es un dato opcional: "" significa
-// "sin especificar" y siempre se puede dejar así.
+// Modelo de PS5. Es un dato opcional: "" significa "sin especificar" y
+// siempre se puede dejar así.
 const PS5_MODELS = ["", "PS5", "PS5 Slim", "PS5 Pro"];
+
+// Para "consola de origen" además puede no haber venido con ninguna consola
+// (se compró el mando por separado, sin bundle).
+const CONSOLE_ORIGEN_OPTIONS = ["", "PS5", "PS5 Slim", "PS5 Pro", "Comprado por separado"];
+
+// Edición del mando: sin especificar, normal, o limitada (con nombre propio).
+const EDITION_TYPES = [
+  { value: "", label: "Sin especificar" },
+  { value: "normal", label: "Normal" },
+  { value: "limitada", label: "Edición limitada" },
+];
 
 const STATUS_META = {
   detectado: { label: "Detectado", badge: "bg-teal-900 text-teal-300 border-teal-700" },
@@ -757,6 +768,8 @@ function emptyController() {
     colorHex: DEFAULT_COLOR_HEX,
     consolaOrigen: "",
     consolaActual: "",
+    edicionTipo: "",
+    edicionNombre: "",
     notes: "",
     favorite: false,
     issues: [],
@@ -788,18 +801,21 @@ function normalizeImportedControllers(data) {
       nombre: raw && typeof raw.nombre === "string" ? raw.nombre : "",
       color: raw && typeof raw.color === "string" ? raw.color : "",
       colorHex: raw && typeof raw.colorHex === "string" ? raw.colorHex : DEFAULT_COLOR_HEX,
-      // "consolaOrigen": con qué consola vino el mando originalmente.
-      // "consolaActual": con qué consola se usa hoy (puede ser distinta).
-      // Los datos exportados con una versión anterior de la app solo tenían
-      // "ps5Model", que representaba la consola de origen: se migra para no
-      // perder lo ya cargado.
+      // "consolaOrigen": con qué consola vino el mando originalmente (o si se
+      // compró por separado). "consolaActual": con qué consola se usa hoy
+      // (puede ser distinta). Los datos exportados con una versión anterior
+      // de la app solo tenían "ps5Model", que representaba la consola de
+      // origen: se migra para no perder lo ya cargado.
       consolaOrigen:
-        raw && typeof raw.consolaOrigen === "string" && PS5_MODELS.includes(raw.consolaOrigen)
+        raw && typeof raw.consolaOrigen === "string" && CONSOLE_ORIGEN_OPTIONS.includes(raw.consolaOrigen)
           ? raw.consolaOrigen
-          : raw && typeof raw.ps5Model === "string" && PS5_MODELS.includes(raw.ps5Model)
+          : raw && typeof raw.ps5Model === "string" && CONSOLE_ORIGEN_OPTIONS.includes(raw.ps5Model)
           ? raw.ps5Model
           : "",
       consolaActual: raw && typeof raw.consolaActual === "string" && PS5_MODELS.includes(raw.consolaActual) ? raw.consolaActual : "",
+      edicionTipo:
+        raw && typeof raw.edicionTipo === "string" && EDITION_TYPES.some((e) => e.value === raw.edicionTipo) ? raw.edicionTipo : "",
+      edicionNombre: raw && typeof raw.edicionNombre === "string" ? raw.edicionNombre : "",
       notes: raw && typeof raw.notes === "string" ? raw.notes : "",
       favorite: !!(raw && raw.favorite),
       issues: rawIssues.map((rawIssue) => {
@@ -1521,6 +1537,8 @@ function DualSenseTracker() {
                       colorHex: data.colorHex,
                       consolaOrigen: data.consolaOrigen,
                       consolaActual: data.consolaActual,
+                      edicionTipo: data.edicionTipo,
+                      edicionNombre: data.edicionNombre,
                       notes: data.notes,
                     }
                   : c
@@ -1912,9 +1930,22 @@ function StatsView({ controllers }) {
       const key = issue.tipo && issue.tipo.trim() ? issue.tipo : "Otro";
       byType[key] = (byType[key] || 0) + 1;
     });
+    const byEdition = {};
+    controllers.forEach((c) => {
+      const key =
+        c.edicionTipo === "limitada"
+          ? "Edición limitada" + (c.edicionNombre && c.edicionNombre.trim() ? ": " + c.edicionNombre.trim() : "")
+          : c.edicionTipo === "normal"
+          ? "Normal"
+          : "Sin especificar";
+      byEdition[key] = (byEdition[key] || 0) + 1;
+    });
     const colorKeys = Object.keys(byColor).sort((a, b) => byColor[b] - byColor[a]);
-    const consoleOrigenKeys = [...new Set([...PS5_MODELS.filter(Boolean), ...Object.keys(byConsoleOrigen)])].filter((k) => byConsoleOrigen[k]);
+    const consoleOrigenKeys = [...new Set([...CONSOLE_ORIGEN_OPTIONS.filter(Boolean), ...Object.keys(byConsoleOrigen)])].filter((k) => byConsoleOrigen[k]);
     const consoleActualKeys = [...new Set([...PS5_MODELS.filter(Boolean), ...Object.keys(byConsoleActual)])].filter((k) => byConsoleActual[k]);
+    const editionKeys = Object.keys(byEdition)
+      .filter((k) => k !== "Sin especificar")
+      .sort((a, b) => byEdition[b] - byEdition[a]);
     const typeKeys = [...new Set([...ISSUE_TYPES, ...Object.keys(byType)])].filter((t) => byType[t]);
     const mostIssues = [...controllers].sort((a, b) => b.issues.length - a.issues.length)[0];
     const overdueOrToday = [];
@@ -1936,10 +1967,12 @@ function StatsView({ controllers }) {
       byColor,
       byConsoleOrigen,
       byConsoleActual,
+      byEdition,
       byType,
       colorKeys,
       consoleOrigenKeys,
       consoleActualKeys,
+      editionKeys,
       typeKeys,
       mostIssues,
       overdueOrToday,
@@ -1953,10 +1986,12 @@ function StatsView({ controllers }) {
     byColor,
     byConsoleOrigen,
     byConsoleActual,
+    byEdition,
     byType,
     colorKeys,
     consoleOrigenKeys,
     consoleActualKeys,
+    editionKeys,
     typeKeys,
     mostIssues,
     overdueOrToday,
@@ -2034,6 +2069,17 @@ function StatsView({ controllers }) {
           "div",
           { className: "flex flex-col gap-2.5 bg-slate-800 border border-slate-700 rounded-lg p-4" },
           consoleActualKeys.map((key) => React.createElement(StatBar, { key, label: key, count: byConsoleActual[key] || 0, total: controllers.length, colorClass: "bg-red-400" }))
+        )
+      ),
+    editionKeys.length > 0 &&
+      React.createElement(
+        "div",
+        null,
+        React.createElement("p", { className: "font-label text-xs tracking-widest text-slate-500 uppercase mb-3" }, "Mandos por edición"),
+        React.createElement(
+          "div",
+          { className: "flex flex-col gap-2.5 bg-slate-800 border border-slate-700 rounded-lg p-4" },
+          editionKeys.map((key) => React.createElement(StatBar, { key, label: key, count: byEdition[key] || 0, total: controllers.length, colorClass: "bg-indigo-400" }))
         )
       ),
     mostIssues &&
@@ -2127,20 +2173,28 @@ function ColorDot({ hex, className }) {
   });
 }
 
-// Arma las etiquetas de consola a mostrar en una tarjeta: si el mando vino con
-// una consola y hoy se usa con otra, se muestran ambas para no perder el
-// dato; si son la misma (o solo se cargó una), se muestra una sola vez.
-function consoleChipList(controller) {
+// Arma las etiquetas a mostrar en una tarjeta: consola(s) y edición.
+// - Consola: si el mando vino con una consola y hoy se usa con otra, se
+//   muestran ambas para no perder el dato; si son la misma (o solo se cargó
+//   una), se muestra una sola vez.
+// - Edición: solo se muestra cuando es una edición limitada (una edición
+//   "normal" no aporta información y no se marca).
+function infoChipList(controller) {
+  const chips = [];
   const origen = controller.consolaOrigen;
   const actual = controller.consolaActual;
   if (origen && actual && origen !== actual) {
-    return [
-      { key: "origen", text: "Vino: " + origen },
-      { key: "actual", text: "Actual: " + actual },
-    ];
+    chips.push({ key: "origen", text: "Vino: " + origen });
+    chips.push({ key: "actual", text: "Actual: " + actual });
+  } else {
+    const single = actual || origen;
+    if (single) chips.push({ key: "single", text: single });
   }
-  const single = actual || origen;
-  return single ? [{ key: "single", text: single }] : [];
+  if (controller.edicionTipo === "limitada") {
+    const nombre = (controller.edicionNombre || "").trim();
+    chips.push({ key: "edicion", text: nombre ? "Edición: " + nombre : "Edición limitada" });
+  }
+  return chips;
 }
 
 function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, onDeleteRequest, onConfirmDelete, onToggleFavorite, reorderable, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
@@ -2171,11 +2225,11 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("p", { className: "text-sm font-semibold text-slate-100 truncate", title: controller.nombre }, controller.nombre || "Mando sin nombre"),
-        consoleChipList(controller).length > 0 &&
+        infoChipList(controller).length > 0 &&
           React.createElement(
             "div",
             { className: "flex flex-wrap gap-1 mt-1" },
-            consoleChipList(controller).map((chip) =>
+            infoChipList(controller).map((chip) =>
               React.createElement(
                 "span",
                 { key: chip.key, className: "font-label inline-block truncate px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
@@ -2395,11 +2449,11 @@ function ControllerDetail({
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("h2", { className: "font-display text-2xl sm:text-3xl text-slate-100 truncate" }, controller.nombre || "Mando sin nombre"),
-        consoleChipList(controller).length > 0 &&
+        infoChipList(controller).length > 0 &&
           React.createElement(
             "div",
             { className: "flex flex-wrap gap-1 mt-1.5" },
-            consoleChipList(controller).map((chip) =>
+            infoChipList(controller).map((chip) =>
               React.createElement(
                 "span",
                 { key: chip.key, className: "font-label inline-block truncate px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
@@ -2812,6 +2866,8 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
   const [colorHex, setColorHex] = useState(initial.colorHex || DEFAULT_COLOR_HEX);
   const [consolaOrigen, setConsolaOrigen] = useState(initial.consolaOrigen || "");
   const [consolaActual, setConsolaActual] = useState(initial.consolaActual || "");
+  const [edicionTipo, setEdicionTipo] = useState(initial.edicionTipo || "");
+  const [edicionNombre, setEdicionNombre] = useState(initial.edicionNombre || "");
   const [notes, setNotes] = useState(initial.notes || "");
   const [error, setError] = useState("");
 
@@ -2826,7 +2882,17 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
       setError("Ingresá un apodo o nombre para identificar el mando.");
       return;
     }
-    onSave({ ...initial, nombre: trimmed, color: color.trim(), colorHex, consolaOrigen, consolaActual, notes: notes.trim() });
+    onSave({
+      ...initial,
+      nombre: trimmed,
+      color: color.trim(),
+      colorHex,
+      consolaOrigen,
+      consolaActual,
+      edicionTipo,
+      edicionNombre: edicionTipo === "limitada" ? edicionNombre.trim() : "",
+      notes: notes.trim(),
+    });
   }
 
   return React.createElement(
@@ -2893,7 +2959,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
         React.createElement(
           "div",
           null,
-          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Consola en la que vino (opcional)"),
+          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Consola de origen (opcional)"),
           React.createElement(
             "select",
             {
@@ -2901,7 +2967,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
               onChange: (e) => setConsolaOrigen(e.target.value),
               className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
             },
-            PS5_MODELS.map((model) => React.createElement("option", { key: model || "none", value: model }, model || "Sin especificar"))
+            CONSOLE_ORIGEN_OPTIONS.map((model) => React.createElement("option", { key: model || "none", value: model }, model || "Sin especificar"))
           )
         ),
         React.createElement(
@@ -2918,6 +2984,30 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
             PS5_MODELS.map((model) => React.createElement("option", { key: model || "none", value: model }, model || "Sin especificar"))
           )
         )
+      ),
+      React.createElement(
+        "div",
+        null,
+        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Edición (opcional)"),
+        React.createElement(
+          "select",
+          {
+            value: edicionTipo,
+            onChange: (e) => setEdicionTipo(e.target.value),
+            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+          },
+          EDITION_TYPES.map((option) => React.createElement("option", { key: option.value || "none", value: option.value }, option.label))
+        ),
+        edicionTipo === "limitada" &&
+          React.createElement("input", {
+            type: "text",
+            autoFocus: true,
+            value: edicionNombre,
+            onChange: (e) => setEdicionNombre(e.target.value),
+            placeholder: "Nombre de la edición (ej: God of War Ragnarök)",
+            className:
+              "w-full mt-2 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+          })
       ),
       React.createElement(
         "div",
