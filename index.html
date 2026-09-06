@@ -524,7 +524,7 @@ const DEFAULT_COLOR_HEX = "#64748b";
 
 // Modelo de PS5 con el que vino el mando. Es un dato opcional: "" significa
 // "sin especificar" y siempre se puede dejar así.
-const PS5_MODELS = ["", "PS5 (modelo original)", "PS5 Slim", "PS5 Pro"];
+const PS5_MODELS = ["", "PS5", "PS5 Slim", "PS5 Pro"];
 
 const STATUS_META = {
   detectado: { label: "Detectado", badge: "bg-teal-900 text-teal-300 border-teal-700" },
@@ -2091,7 +2091,7 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("p", { className: "text-sm font-semibold text-slate-100 truncate", title: controller.nombre }, controller.nombre || "Mando sin nombre"),
         controller.ps5Model &&
-          React.createElement("span", { className: "font-label inline-block mt-1 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" }, controller.ps5Model)
+          React.createElement("span", { className: "font-label inline-block truncate mt-1 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" }, controller.ps5Model)
       ),
       React.createElement(
         "div",
@@ -2305,7 +2305,7 @@ function ControllerDetail({
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("h2", { className: "font-display text-2xl sm:text-3xl text-slate-100 truncate" }, controller.nombre || "Mando sin nombre"),
         controller.ps5Model &&
-          React.createElement("span", { className: "font-label inline-block mt-1.5 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" }, controller.ps5Model)
+          React.createElement("span", { className: "font-label inline-block truncate mt-1.5 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" }, controller.ps5Model)
       ),
       React.createElement(
         "div",
@@ -2788,7 +2788,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Vino con (opcional)"),
+        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Consola (opcional)"),
         React.createElement(
           "select",
           {
