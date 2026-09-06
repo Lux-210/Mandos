@@ -2207,9 +2207,10 @@ function ColorDot({ hex, className }) {
 //   una), se muestra una sola vez.
 // - Edición: solo se muestra cuando es una edición limitada (una edición
 //   "normal" no aporta información y no se marca).
-// alwaysShow=true ignora los flags de visibilidad (se usa en la tarjeta chica
-// del listado, que siempre muestra esta info); si es false/omitido, respeta
-// origenVisible/actualVisible (se usa en la vista de detalle del mando).
+// alwaysShow=true ignora los flags de visibilidad (se usa en la vista de
+// detalle del mando, que siempre muestra esta info); si es false/omitido, se
+// respeta origenVisible/actualVisible (se usa en la tarjeta chica del
+// listado, donde el botón del ojo puede ocultarla).
 function infoChipList(controller, alwaysShow) {
   const chips = [];
   const origen = alwaysShow || controller.origenVisible !== false ? controller.consolaOrigen : "";
@@ -2256,11 +2257,11 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("p", { className: "text-sm font-semibold text-slate-100 truncate", title: controller.nombre }, controller.nombre || "Mando sin nombre"),
-        infoChipList(controller, true).length > 0 &&
+        infoChipList(controller).length > 0 &&
           React.createElement(
             "div",
             { className: "flex flex-wrap gap-1 mt-1" },
-            infoChipList(controller, true).map((chip) =>
+            infoChipList(controller).map((chip) =>
               React.createElement(
                 "span",
                 { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
@@ -2480,11 +2481,11 @@ function ControllerDetail({
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("h2", { className: "font-display text-2xl sm:text-3xl text-slate-100 truncate" }, controller.nombre || "Mando sin nombre"),
-        infoChipList(controller).length > 0 &&
+        infoChipList(controller, true).length > 0 &&
           React.createElement(
             "div",
             { className: "flex flex-wrap gap-1 mt-1.5" },
-            infoChipList(controller).map((chip) =>
+            infoChipList(controller, true).map((chip) =>
               React.createElement(
                 "span",
                 { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
