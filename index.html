@@ -13,6 +13,12 @@
 <meta name="apple-mobile-web-app-title" content="Mis DualSense" />
 <meta name="mobile-web-app-capable" content="yes" />
 <script>
+  try {
+    var savedAccent = localStorage.getItem("mis-dualsense-accent");
+    if (savedAccent) document.documentElement.setAttribute("data-accent", savedAccent);
+  } catch (e) {}
+</script>
+<script>
 /**
  * @license React
  * react.production.min.js
@@ -329,12 +335,60 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     background-size: 16px 16px;
   }
   body { margin: 0; }
+  /* Color de acento configurable (ver selector en el encabezado). Por
+     defecto (teal) coincide exactamente con los valores que ya usaba la app. */
+  :root {
+    --accent-900: #134e4a; --accent-700: #0f766e; --accent-600: #0d9488;
+    --accent-500: #14b8a6; --accent-400: #2dd4bf; --accent-300: #5eead4;
+  }
+  html[data-accent="blue"] {
+    --accent-900: #1e3a8a; --accent-700: #1d4ed8; --accent-600: #2563eb;
+    --accent-500: #3b82f6; --accent-400: #60a5fa; --accent-300: #93c5fd;
+  }
+  html[data-accent="purple"] {
+    --accent-900: #4c1d95; --accent-700: #6d28d9; --accent-600: #7c3aed;
+    --accent-500: #8b5cf6; --accent-400: #a78bfa; --accent-300: #c4b5fd;
+  }
+  html[data-accent="pink"] {
+    --accent-900: #831843; --accent-700: #be185d; --accent-600: #db2777;
+    --accent-500: #ec4899; --accent-400: #f472b6; --accent-300: #f9a8d4;
+  }
+  html[data-accent="amber"] {
+    --accent-900: #78350f; --accent-700: #b45309; --accent-600: #d97706;
+    --accent-500: #f59e0b; --accent-400: #fbbf24; --accent-300: #fcd34d;
+  }
+  html[data-accent="red"] {
+    --accent-900: #7f1d1d; --accent-700: #b91c1c; --accent-600: #dc2626;
+    --accent-500: #ef4444; --accent-400: #f87171; --accent-300: #fca5a5;
+  }
+  html[data-accent="green"] {
+    --accent-900: #064e3b; --accent-700: #047857; --accent-600: #059669;
+    --accent-500: #10b981; --accent-400: #34d399; --accent-300: #6ee7b7;
+  }
+  .text-accent-300 { color: var(--accent-300); }
+  .text-accent-400 { color: var(--accent-400); }
+  .bg-accent-400 { background-color: var(--accent-400); }
+  .bg-accent-600 { background-color: var(--accent-600); }
+  .bg-accent-900 { background-color: var(--accent-900); }
+  .border-accent-400 { border-color: var(--accent-400); }
+  .border-accent-700 { border-color: var(--accent-700); }
+  .hover\:bg-accent-500:hover { background-color: var(--accent-500); }
+  .hover\:text-accent-300:hover { color: var(--accent-300); }
+  .focus\:ring-accent-400:focus { --tw-ring-color: var(--accent-400); }
+  .focus\:ring-accent-500:focus { --tw-ring-color: var(--accent-500); }
+  .focus\:border-accent-500:focus { border-color: var(--accent-500); }
+  #print-report { display: none; }
+  @media print {
+    body > *:not(#print-report) { display: none !important; }
+    #print-report { display: block !important; background: #fff; }
+  }
 </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="print-report"></div>
 <script>
-const { useState, useEffect, useRef, useMemo } = React;
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 // ---------------------------------------------------------------------------
 // Iconos (formas simples, sin dependencias externas)
@@ -482,6 +536,18 @@ function Icon({ name, className, fill = "none", ...rest }) {
         React.createElement("path", { d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" }),
         React.createElement("path", { d: "m2 2 20 20" })
       );
+    case "printer":
+      return React.createElement(
+        "svg", common,
+        React.createElement("path", { d: "M6 9V2h12v7" }),
+        React.createElement("path", { d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" }),
+        React.createElement("rect", { x: "6", y: "14", width: "12", height: "8" })
+      );
+    case "flag":
+      return React.createElement(
+        "svg", common,
+        React.createElement("path", { d: "M4 21V4a1 1 0 0 1 1-1h9.5a1 1 0 0 1 .8 1.6L13 8l2.3 3.4a1 1 0 0 1-.8 1.6H5" })
+      );
     default:
       return null;
   }
@@ -506,6 +572,22 @@ const ISSUE_TYPES = [
   "Ruido o crujido",
   "Panel táctil",
   "Otro",
+];
+
+// Un color fijo por tipo de falla, usado en el gráfico "a lo largo del
+// tiempo" de Estadísticas (mismo índice que ISSUE_TYPES).
+const TYPE_COLORS = [
+  "#94a3b8",
+  "#818cf8",
+  "#38bdf8",
+  "#2dd4bf",
+  "#a3e635",
+  "#fbbf24",
+  "#fb923c",
+  "#f87171",
+  "#e879f9",
+  "#f472b6",
+  "#64748b",
 ];
 
 // Sugerencias de color (autocompletar). El campo es de texto libre, así que
@@ -539,6 +621,13 @@ const DEFAULT_COLOR_HEX = "#64748b";
 // Modelo de PS5. Es un dato opcional: "" significa "sin especificar" y
 // siempre se puede dejar así.
 const PS5_MODELS = ["", "PS5", "PS5 Slim", "PS5 Pro"];
+
+// Opciones para el filtro "consola actual" del listado de mandos.
+const CONSOLE_FILTER_OPTIONS = [
+  { value: "all", label: "Todas las consolas" },
+  ...PS5_MODELS.filter(Boolean).map((m) => ({ value: m, label: m })),
+  { value: "__none__", label: "Sin especificar" },
+];
 
 // Para "consola de origen" además puede no haber venido con ninguna consola
 // (se compró el mando por separado, sin bundle).
@@ -574,6 +663,20 @@ const GH_TOKEN_KEY = "mis-dualsense-gh-token";
 const GH_GIST_ID_KEY = "mis-dualsense-gh-gist-id";
 const GH_GIST_DESCRIPTION = "Mis DualSense — datos (no editar a mano)";
 const GH_GIST_FILENAME = "mis-dualsense-data.json";
+const ACCENT_KEY = "mis-dualsense-accent";
+
+// Paleta de colores de acento disponibles. El valor "hex" solo se usa para
+// pintar el puntito selector; el resto de la app usa las clases .accent-*
+// (ver <style>), que leen las variables --accent-* definidas por [data-accent].
+const ACCENT_OPTIONS = [
+  { value: "teal", label: "Verde azulado", hex: "#14b8a6" },
+  { value: "blue", label: "Azul", hex: "#3b82f6" },
+  { value: "purple", label: "Morado", hex: "#8b5cf6" },
+  { value: "pink", label: "Rosa", hex: "#ec4899" },
+  { value: "amber", label: "Ámbar", hex: "#f59e0b" },
+  { value: "red", label: "Rojo", hex: "#ef4444" },
+  { value: "green", label: "Esmeralda", hex: "#10b981" },
+];
 
 // ---------------------------------------------------------------------------
 // Sincronización con GitHub Gist (idéntico al mecanismo original, solo
@@ -679,6 +782,7 @@ function sortIssues(issues, sortBy) {
   if (sortBy === "titulo") return [...issues].sort((a, b) => a.titulo.localeCompare(b.titulo, "es"));
   if (sortBy === "status")
     return [...issues].sort((a, b) => STATUS_ORDER[normalizeStatus(a.status)] - STATUS_ORDER[normalizeStatus(b.status)]);
+  if (sortBy === "urgencia") return [...issues].sort((a, b) => (b.urgente ? 1 : 0) - (a.urgente ? 1 : 0));
   return issues;
 }
 
@@ -716,10 +820,16 @@ function formatDate(timestamp) {
     : "";
 }
 
+function formatMoney(value) {
+  if (value === null || value === undefined || value === "" || isNaN(value)) return "";
+  return "$" + Number(value).toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function issueMatchesQuery(issue, query) {
   return (
     normalizeText(issue.titulo).includes(query) ||
     normalizeText(issue.tipo).includes(query) ||
+    normalizeText(issue.notes).includes(query) ||
     (issue.tags || []).some((tag) => normalizeText(tag).includes(query))
   );
 }
@@ -786,6 +896,10 @@ function emptyController() {
     actualVisible: true,
     edicionTipo: "",
     edicionNombre: "",
+    precioCompra: null,
+    fechaCompra: null,
+    finGarantia: null,
+    numeroSerie: "",
     notes: "",
     favorite: false,
     issues: [],
@@ -800,6 +914,8 @@ function emptyIssue() {
     tipo: ISSUE_TYPES[0],
     status: "detectado",
     notes: "",
+    costo: null,
+    urgente: false,
     createdAt: now,
     updatedAt: now,
     tags: [],
@@ -842,6 +958,10 @@ function normalizeImportedControllers(data) {
       edicionTipo:
         raw && typeof raw.edicionTipo === "string" && EDITION_TYPES.some((e) => e.value === raw.edicionTipo) ? raw.edicionTipo : "",
       edicionNombre: raw && typeof raw.edicionNombre === "string" ? raw.edicionNombre : "",
+      precioCompra: raw && typeof raw.precioCompra === "number" && !isNaN(raw.precioCompra) ? raw.precioCompra : null,
+      fechaCompra: raw && typeof raw.fechaCompra === "number" ? raw.fechaCompra : null,
+      finGarantia: raw && typeof raw.finGarantia === "number" ? raw.finGarantia : null,
+      numeroSerie: raw && typeof raw.numeroSerie === "string" ? raw.numeroSerie : "",
       notes: raw && typeof raw.notes === "string" ? raw.notes : "",
       favorite: !!(raw && raw.favorite),
       issues: rawIssues.map((rawIssue) => {
@@ -853,6 +973,8 @@ function normalizeImportedControllers(data) {
           tipo: rawIssue && typeof rawIssue.tipo === "string" && rawIssue.tipo.trim() ? rawIssue.tipo : ISSUE_TYPES[0],
           status,
           notes: rawIssue && typeof rawIssue.notes === "string" ? rawIssue.notes : "",
+          costo: rawIssue && typeof rawIssue.costo === "number" && !isNaN(rawIssue.costo) ? rawIssue.costo : null,
+          urgente: !!(rawIssue && rawIssue.urgente),
           createdAt,
           updatedAt: rawIssue && typeof rawIssue.updatedAt === "number" ? rawIssue.updatedAt : createdAt,
           tags:
@@ -937,12 +1059,30 @@ function loadFromStorage() {
 }
 
 // ---------------------------------------------------------------------------
+// Hook genérico: devuelve una versión "demorada" de un valor, que solo se
+// actualiza si el valor original se mantiene estable durante "delay" ms. Se
+// usa en los buscadores para no re-filtrar en cada tecla presionada.
+// ---------------------------------------------------------------------------
+function useDebouncedValue(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+// ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 function DualSenseTracker() {
   const [controllers, setControllers] = useState(() => loadFromStorage());
   const [searchQuery, setSearchQuery] = useState("");
   const [colorFilter, setColorFilter] = useState("all");
+  const [consoleFilter, setConsoleFilter] = useState("all");
+  const [activeIssuesOnly, setActiveIssuesOnly] = useState(false);
+  const [limitedEditionOnly, setLimitedEditionOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [sortBy, setSortBy] = useState("default");
   const [controllerModal, setControllerModal] = useState(null); // {mode, data}
   const [issueModal, setIssueModal] = useState(null); // {controllerId, mode, data}
@@ -959,7 +1099,16 @@ function DualSenseTracker() {
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [initialIssueSearch, setInitialIssueSearch] = useState("");
   const [activeTab, setActiveTab] = useState("mandos");
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const [importState, setImportState] = useState(null);
+  const [printController, setPrintController] = useState(null);
+  const [accent, setAccent] = useState(() => {
+    try {
+      return localStorage.getItem(ACCENT_KEY) || "teal";
+    } catch (e) {
+      return "teal";
+    }
+  });
 
   const pushDebounceTimerRef = useRef(null);
   const skipNextAutoPushRef = useRef(false);
@@ -967,8 +1116,10 @@ function DualSenseTracker() {
   const confirmDeleteIssueTimerRef = useRef(null);
   const openMenuTimerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const searchInputRef = useRef(null);
   const isFirstMountForUnsavedFlagRef = useRef(true);
   const controllersRef = useRef(controllers);
+  const visibleControllersRef = useRef([]);
 
   async function syncNow() {
     if (!cloudSync.token || !cloudSync.gistId) return;
@@ -985,57 +1136,157 @@ function DualSenseTracker() {
     }
   }
 
-  function pushToast(message, undo) {
+  // A partir de acá, los handlers que se pasan como props a tarjetas
+  // repetidas (ControllerCard, IssueCard, IssueSearchResultCard, que están
+  // envueltas en React.memo) se envuelven con useCallback y reciben el id
+  // como parámetro en lugar de cerrar sobre el objeto completo. Así,
+  // React.memo puede detectar que sus props no cambiaron y evitar
+  // re-renderizar tarjetas que no tienen nada nuevo. Para no depender de
+  // "controllers" (que cambia de referencia todo el tiempo) se usa
+  // "controllersRef.current" y actualizaciones funcionales de estado.
+
+  const pushToast = useCallback((message, undo) => {
     const id = uid();
     setToasts((list) => [...list, { id, message, undo }]);
     setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 5000);
-  }
+  }, []);
 
-  function toggleMenu(controllerId) {
-    setOpenMenu((m) => (m && m.controllerId === controllerId ? null : { controllerId, mode: "options" }));
-    clearTimeout(openMenuTimerRef.current);
-  }
-
-  function closeMenu() {
+  const closeMenu = useCallback(() => {
     setOpenMenu(null);
     clearTimeout(openMenuTimerRef.current);
-  }
+  }, []);
 
-  function askConfirmDeleteController(controllerId) {
+  const toggleMenu = useCallback((controllerId) => {
+    setOpenMenu((m) => (m && m.controllerId === controllerId ? null : { controllerId, mode: "options" }));
+    clearTimeout(openMenuTimerRef.current);
+  }, []);
+
+  const askConfirmDeleteController = useCallback((controllerId) => {
     setOpenMenu({ controllerId, mode: "confirm" });
     clearTimeout(openMenuTimerRef.current);
     openMenuTimerRef.current = setTimeout(() => setOpenMenu(null), 3000);
-  }
+  }, []);
 
-  function deleteController(controllerId) {
-    const found = controllers.find((c) => c.id === controllerId);
-    if (found) {
-      try {
-        exportSingleController(found);
-      } catch (e) {}
-    }
-    setControllers((list) => list.filter((c) => c.id !== controllerId));
-    if (openControllerId === controllerId) setOpenControllerId(null);
-    closeMenu();
-    if (found) {
-      pushToast("Mando eliminado", () => setControllers((list) => [...list, found]));
-    }
-  }
+  const deleteController = useCallback(
+    (controllerId) => {
+      const found = controllersRef.current.find((c) => c.id === controllerId);
+      if (found) {
+        try {
+          exportSingleController(found);
+        } catch (e) {}
+      }
+      setControllers((list) => list.filter((c) => c.id !== controllerId));
+      setOpenControllerId((current) => (current === controllerId ? null : current));
+      closeMenu();
+      if (found) {
+        pushToast("Mando eliminado", () => setControllers((list) => [...list, found]));
+      }
+    },
+    [closeMenu, pushToast]
+  );
 
-  function toggleFavorite(controllerId) {
+  const toggleFavorite = useCallback((controllerId) => {
     setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, favorite: !c.favorite } : c)));
-  }
+  }, []);
 
-  function openEditController(controller) {
-    setControllerModal({ mode: "edit", data: controller });
-    closeMenu();
-  }
+  const openEditController = useCallback(
+    (controllerId) => {
+      const found = controllersRef.current.find((c) => c.id === controllerId);
+      if (found) setControllerModal({ mode: "edit", data: found });
+      closeMenu();
+    },
+    [closeMenu]
+  );
 
-  function openIssueInController(controllerId, searchText) {
+  const openIssueInController = useCallback(
+    (controllerId, searchText) => {
+      setOpenControllerId(controllerId);
+      setInitialIssueSearch(searchText);
+      closeMenu();
+    },
+    [closeMenu]
+  );
+
+  const handleOpenController = useCallback((controllerId) => {
     setOpenControllerId(controllerId);
-    setInitialIssueSearch(searchText);
+    setInitialIssueSearch("");
     closeMenu();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const moveControllerBy = useCallback((controllerId, direction) => {
+    const list = visibleControllersRef.current;
+    const idx = list.findIndex((c) => c.id === controllerId);
+    if (idx === -1) return;
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const targetId = list[targetIdx].id;
+    setControllers((current) => {
+      const a = current.findIndex((c) => c.id === controllerId);
+      const b = current.findIndex((c) => c.id === targetId);
+      if (a === -1 || b === -1) return current;
+      const next = [...current];
+      [next[a], next[b]] = [next[b], next[a]];
+      return next;
+    });
+  }, []);
+
+  const moveControllerUp = useCallback((controllerId) => moveControllerBy(controllerId, "up"), [moveControllerBy]);
+  const moveControllerDown = useCallback((controllerId) => moveControllerBy(controllerId, "down"), [moveControllerBy]);
+
+  const handleEditIssue = useCallback((controllerId, issueId) => {
+    const controller = controllersRef.current.find((c) => c.id === controllerId);
+    const issue = controller && controller.issues.find((i) => i.id === issueId);
+    if (issue) setIssueModal({ controllerId, mode: "edit", data: issue });
+  }, []);
+
+  const handleDeleteIssueRequest = useCallback((controllerId, issueId) => {
+    setConfirmDeleteIssue({ controllerId, issueId });
+    clearTimeout(confirmDeleteIssueTimerRef.current);
+    confirmDeleteIssueTimerRef.current = setTimeout(() => setConfirmDeleteIssue(null), 3000);
+  }, []);
+
+  const handleConfirmDeleteIssue = useCallback(
+    (controllerId, issueId) => {
+      const controller = controllersRef.current.find((c) => c.id === controllerId);
+      const issue = controller ? controller.issues.find((i) => i.id === issueId) : null;
+      setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, issues: c.issues.filter((i) => i.id !== issueId) } : c)));
+      setConfirmDeleteIssue(null);
+      if (issue) {
+        pushToast("Falla eliminada", () => {
+          setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, issues: [...c.issues, issue] } : c)));
+        });
+      }
+    },
+    [pushToast]
+  );
+
+  const handleCancelConfirmIssue = useCallback(() => setConfirmDeleteIssue(null), []);
+
+  const handleSwapIssues = useCallback((controllerId, issueIdA, issueIdB) => {
+    setControllers((list) =>
+      list.map((c) => {
+        if (c.id !== controllerId) return c;
+        const ia = c.issues.findIndex((i) => i.id === issueIdA);
+        const ib = c.issues.findIndex((i) => i.id === issueIdB);
+        if (ia === -1 || ib === -1) return c;
+        const issues = [...c.issues];
+        [issues[ia], issues[ib]] = [issues[ib], issues[ia]];
+        return { ...c, issues };
+      })
+    );
+  }, []);
+
+  const handleAddIssue = useCallback((controllerId) => {
+    setIssueModal({ controllerId, mode: "new", data: emptyIssue() });
+  }, []);
+
+  const handlePrint = useCallback((controllerId) => {
+    const controller = controllersRef.current.find((c) => c.id === controllerId);
+    if (controller) setPrintController(controller);
+  }, []);
+
+  const handleBackFromDetail = useCallback(() => setOpenControllerId(null), []);
 
   function applyImport(newControllers, addedControllerIds = [], addedIssueIdsByController = {}) {
     setControllers(newControllers);
@@ -1076,24 +1327,91 @@ function DualSenseTracker() {
   }, []);
 
   useEffect(() => {
+    function isTypingContext() {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    }
+    function anyModalOpen() {
+      return !!(controllerModal || issueModal || syncModalOpen || importState);
+    }
     function onKeyDown(e) {
-      if (e.key !== "Escape") return;
-      setIssueModal(null);
-      setControllerModal(null);
-      setOpenMenu(null);
-      setConfirmDeleteIssue(null);
-      clearTimeout(confirmDeleteIssueTimerRef.current);
-      setImportState(null);
-      setSyncModalOpen(false);
+      if (e.key === "Escape") {
+        setIssueModal(null);
+        setControllerModal(null);
+        setOpenMenu(null);
+        setConfirmDeleteIssue(null);
+        clearTimeout(confirmDeleteIssueTimerRef.current);
+        setImportState(null);
+        setSyncModalOpen(false);
+        return;
+      }
+      // Los atajos de una sola tecla no deben interferir mientras se escribe
+      // en un campo, ni mientras hay un modal abierto.
+      if (isTypingContext() || anyModalOpen()) return;
+
+      if (e.key === "/") {
+        if (activeTab === "mandos" && searchInputRef.current) {
+          e.preventDefault();
+          searchInputRef.current.focus();
+        }
+        return;
+      }
+      if ((e.key === "n" || e.key === "N") && !openControllerId) {
+        e.preventDefault();
+        setControllerModal({ mode: "new", data: emptyController() });
+        return;
+      }
+      if (!openControllerId && activeTab === "mandos") {
+        const list = visibleControllersRef.current;
+        if (list.length === 0) return;
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+          e.preventDefault();
+          setFocusedIndex((idx) => (idx < 0 ? 0 : Math.min(idx + 1, list.length - 1)));
+        } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          setFocusedIndex((idx) => (idx < 0 ? 0 : Math.max(idx - 1, 0)));
+        } else if (e.key === "Enter") {
+          setFocusedIndex((idx) => {
+            if (idx >= 0 && list[idx]) handleOpenController(list[idx].id);
+            return idx;
+          });
+        }
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [controllerModal, issueModal, syncModalOpen, importState, activeTab, openControllerId, handleOpenController]);
 
   useEffect(() => {
     if (isFirstMountForUnsavedFlagRef.current) isFirstMountForUnsavedFlagRef.current = false;
     else setHasUnsavedExport(true);
   }, [controllers]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-accent", accent);
+    try {
+      localStorage.setItem(ACCENT_KEY, accent);
+    } catch (e) {}
+  }, [accent]);
+
+  useEffect(() => {
+    if (!printController) return;
+    const timer = setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {}
+    }, 80);
+    function onAfterPrint() {
+      setPrintController(null);
+    }
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("afterprint", onAfterPrint);
+    };
+  }, [printController]);
 
   useEffect(() => {
     try {
@@ -1157,29 +1475,45 @@ function DualSenseTracker() {
   }, [controllers]);
 
   const hasQuery = searchQuery.trim().length > 0;
-  const normalizedQuery = normalizeText(searchQuery);
-  const colorFiltered = useMemo(
-    () => (colorFilter === "all" ? controllers : controllers.filter((c) => c.color === colorFilter)),
-    [controllers, colorFilter]
-  );
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 200);
+  const normalizedQuery = normalizeText(debouncedSearchQuery);
+
+  // Si cambian los filtros/orden/búsqueda, la lista visible cambia: se
+  // descarta el foco por teclado anterior para no dejarlo apuntando a una
+  // tarjeta que ya no está en esa posición.
+  useEffect(() => {
+    setFocusedIndex(-1);
+  }, [colorFilter, consoleFilter, activeIssuesOnly, limitedEditionOnly, favoritesOnly, sortBy, debouncedSearchQuery]);
+
+  const hasActiveExtraFilter = consoleFilter !== "all" || activeIssuesOnly || limitedEditionOnly || favoritesOnly;
+  const filteredControllers = useMemo(() => {
+    let list = colorFilter === "all" ? controllers : controllers.filter((c) => c.color === colorFilter);
+    if (consoleFilter !== "all") {
+      list = list.filter((c) => (consoleFilter === "__none__" ? !c.consolaActual : c.consolaActual === consoleFilter));
+    }
+    if (activeIssuesOnly) list = list.filter((c) => c.issues.some((issue) => normalizeStatus(issue.status) !== "resuelto"));
+    if (limitedEditionOnly) list = list.filter((c) => c.edicionTipo === "limitada");
+    if (favoritesOnly) list = list.filter((c) => c.favorite);
+    return list;
+  }, [controllers, colorFilter, consoleFilter, activeIssuesOnly, limitedEditionOnly, favoritesOnly]);
   const visibleControllers = useMemo(
     () =>
       sortControllers(
-        hasQuery ? colorFiltered.filter((c) => normalizeText(c.nombre).includes(normalizedQuery)) : colorFiltered,
+        hasQuery ? filteredControllers.filter((c) => normalizeText(c.nombre).includes(normalizedQuery)) : filteredControllers,
         sortBy
       ),
-    [colorFiltered, hasQuery, normalizedQuery, sortBy]
+    [filteredControllers, hasQuery, normalizedQuery, sortBy]
   );
   const matchingIssues = useMemo(
     () =>
       hasQuery
-        ? colorFiltered
+        ? filteredControllers
             .flatMap((c) =>
               c.issues.filter((issue) => issueMatchesQuery(issue, normalizedQuery)).map((issue) => ({ issue, controller: c }))
             )
             .sort((a, b) => a.issue.titulo.localeCompare(b.issue.titulo, "es"))
         : [],
-    [colorFiltered, hasQuery, normalizedQuery]
+    [filteredControllers, hasQuery, normalizedQuery]
   );
   const totalIssues = useMemo(() => controllers.reduce((sum, c) => sum + c.issues.length, 0), [controllers]);
   const openController = useMemo(() => controllers.find((c) => c.id === openControllerId) || null, [controllers, openControllerId]);
@@ -1188,21 +1522,9 @@ function DualSenseTracker() {
     [controllers]
   );
 
-  function moveControllerBy(controllerId, direction) {
-    const idx = visibleControllers.findIndex((c) => c.id === controllerId);
-    if (idx === -1) return;
-    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (targetIdx < 0 || targetIdx >= visibleControllers.length) return;
-    const targetId = visibleControllers[targetIdx].id;
-    setControllers((list) => {
-      const a = list.findIndex((c) => c.id === controllerId);
-      const b = list.findIndex((c) => c.id === targetId);
-      if (a === -1 || b === -1) return list;
-      const next = [...list];
-      [next[a], next[b]] = [next[b], next[a]];
-      return next;
-    });
-  }
+  useEffect(() => {
+    visibleControllersRef.current = visibleControllers;
+  }, [visibleControllers]);
 
   return React.createElement(
     "div",
@@ -1217,53 +1539,22 @@ function DualSenseTracker() {
       openController
         ? React.createElement(ControllerDetail, {
             controller: openController,
-            onBack: () => setOpenControllerId(null),
+            onBack: handleBackFromDetail,
             menuState: openMenu,
-            onToggleMenu: () => toggleMenu(openController.id),
-            onEdit: () => openEditController(openController),
-            onDeleteRequest: () => askConfirmDeleteController(openController.id),
-            onConfirmDelete: () => deleteController(openController.id),
-            onToggleFavorite: () => toggleFavorite(openController.id),
-            onAddIssue: () => setIssueModal({ controllerId: openController.id, mode: "new", data: emptyIssue() }),
-            onEditIssue: (issue) => setIssueModal({ controllerId: openController.id, mode: "edit", data: issue }),
-            onDeleteIssueRequest: (issueId) => {
-              setConfirmDeleteIssue({ controllerId: openController.id, issueId });
-              clearTimeout(confirmDeleteIssueTimerRef.current);
-              confirmDeleteIssueTimerRef.current = setTimeout(() => setConfirmDeleteIssue(null), 3000);
-            },
+            onToggleMenu: toggleMenu,
+            onEdit: openEditController,
+            onDeleteRequest: askConfirmDeleteController,
+            onConfirmDelete: deleteController,
+            onToggleFavorite: toggleFavorite,
+            onAddIssue: handleAddIssue,
+            onEditIssue: handleEditIssue,
+            onDeleteIssueRequest: handleDeleteIssueRequest,
             confirmDeleteIssue,
-            onConfirmDeleteIssue: (issueId) => {
-              const controllerId = openController.id;
-              const controller = controllers.find((c) => c.id === controllerId);
-              const issue = controller ? controller.issues.find((i) => i.id === issueId) : null;
-              setControllers((list) =>
-                list.map((c) => (c.id === controllerId ? { ...c, issues: c.issues.filter((i) => i.id !== issueId) } : c))
-              );
-              setConfirmDeleteIssue(null);
-              if (issue) {
-                pushToast("Falla eliminada", () => {
-                  setControllers((list) =>
-                    list.map((c) => (c.id === controllerId ? { ...c, issues: [...c.issues, issue] } : c))
-                  );
-                });
-              }
-            },
-            onCancelConfirmIssue: () => setConfirmDeleteIssue(null),
+            onConfirmDeleteIssue: handleConfirmDeleteIssue,
+            onCancelConfirmIssue: handleCancelConfirmIssue,
             initialIssueSearch,
-            onSwapIssues: (issueIdA, issueIdB) => {
-              const controllerId = openController.id;
-              setControllers((list) =>
-                list.map((c) => {
-                  if (c.id !== controllerId) return c;
-                  const ia = c.issues.findIndex((i) => i.id === issueIdA);
-                  const ib = c.issues.findIndex((i) => i.id === issueIdB);
-                  if (ia === -1 || ib === -1) return c;
-                  const issues = [...c.issues];
-                  [issues[ia], issues[ib]] = [issues[ib], issues[ia]];
-                  return { ...c, issues };
-                })
-              );
-            },
+            onSwapIssues: handleSwapIssues,
+            onPrint: handlePrint,
           })
         : React.createElement(
             React.Fragment,
@@ -1273,7 +1564,7 @@ function DualSenseTracker() {
               { className: "mb-8" },
               React.createElement(
                 "p",
-                { className: "font-label text-xs tracking-widest text-teal-400 uppercase mb-1" },
+                { className: "font-label text-xs tracking-widest text-accent-400 uppercase mb-1" },
                 "Registro personal"
               ),
               React.createElement(
@@ -1317,7 +1608,7 @@ function DualSenseTracker() {
                         setHasUnsavedExport(false);
                       },
                       className:
-                        "flex items-center gap-1 font-label text-xs text-teal-400 hover:text-teal-300 transition-colors tracking-wide",
+                        "flex items-center gap-1 font-label text-xs text-accent-400 hover:text-accent-300 transition-colors tracking-wide",
                     },
                     React.createElement(Icon, { name: "download", className: "w-3 h-3" }),
                     "EXPORTAR JSON"
@@ -1335,7 +1626,7 @@ function DualSenseTracker() {
                     type: "button",
                     onClick: () => setSyncModalOpen(true),
                     className:
-                      "flex items-center gap-1 font-label text-xs text-teal-400 hover:text-teal-300 transition-colors tracking-wide",
+                      "flex items-center gap-1 font-label text-xs text-accent-400 hover:text-accent-300 transition-colors tracking-wide",
                   },
                   React.createElement(Icon, { name: "cloud", className: "w-3 h-3", fill: cloudSync.connected ? "currentColor" : "none" }),
                   cloudSync.connected
@@ -1350,7 +1641,7 @@ function DualSenseTracker() {
                     type: "button",
                     onClick: () => fileInputRef.current && fileInputRef.current.click(),
                     className:
-                      "flex items-center gap-1 font-label text-xs text-teal-400 hover:text-teal-300 transition-colors tracking-wide",
+                      "flex items-center gap-1 font-label text-xs text-accent-400 hover:text-accent-300 transition-colors tracking-wide",
                   },
                   React.createElement(Icon, { name: "upload", className: "w-3 h-3" }),
                   "IMPORTAR JSON"
@@ -1391,7 +1682,25 @@ function DualSenseTracker() {
                     e.target.value = "";
                   },
                   className: "hidden",
-                })
+                }),
+                React.createElement(
+                  "div",
+                  { className: "flex items-center gap-1.5 ml-auto" },
+                  React.createElement("p", { className: "font-label text-xs text-slate-500 tracking-wide mr-0.5" }, "ACENTO"),
+                  ACCENT_OPTIONS.map((opt) =>
+                    React.createElement("button", {
+                      key: opt.value,
+                      type: "button",
+                      onClick: () => setAccent(opt.value),
+                      title: opt.label,
+                      "aria-label": "Color de acento: " + opt.label,
+                      "aria-pressed": accent === opt.value,
+                      className:
+                        "w-4 h-4 rounded-full transition-transform " + (accent === opt.value ? "ring-2 ring-offset-2 ring-offset-slate-900 ring-slate-300 scale-110" : "opacity-70 hover:opacity-100"),
+                      style: { backgroundColor: opt.hex },
+                    })
+                  )
+                )
               )
             ),
             React.createElement(
@@ -1412,7 +1721,7 @@ function DualSenseTracker() {
                     className:
                       "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors " +
                       (activeTab === tab.value
-                        ? "border-teal-400 text-teal-300"
+                        ? "border-accent-400 text-accent-300"
                         : "border-transparent text-slate-500 hover:text-slate-300"),
                   },
                   React.createElement(Icon, { name: tab.icon, className: "w-3.5 h-3.5" }),
@@ -1435,8 +1744,9 @@ function DualSenseTracker() {
                     React.createElement(SearchInput, {
                       value: searchQuery,
                       onChange: setSearchQuery,
-                      placeholder: "Buscar por nombre del mando o falla...",
+                      placeholder: "Buscar por nombre del mando o falla... (atajo: /)",
                       ariaLabel: "Buscar por nombre del mando o falla",
+                      inputRef: searchInputRef,
                     })
                   ),
                   React.createElement(
@@ -1445,7 +1755,7 @@ function DualSenseTracker() {
                       type: "button",
                       onClick: () => setControllerModal({ mode: "new", data: emptyController() }),
                       className:
-                        "flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md bg-teal-600 text-white text-sm font-medium hover:bg-teal-500 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-400",
+                        "flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md bg-accent-600 text-white text-sm font-medium hover:bg-accent-500 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-400",
                     },
                     React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
                     "Nuevo mando"
@@ -1454,31 +1764,86 @@ function DualSenseTracker() {
                 controllers.length > 0 &&
                   React.createElement(
                     "div",
-                    { className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6" },
+                    { className: "flex flex-col gap-2.5 mb-6" },
                     React.createElement(
-                      "select",
-                      {
-                        value: colorFilter,
-                        onChange: (e) => setColorFilter(e.target.value),
-                        "aria-label": "Filtrar por color",
-                        className:
-                          "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
-                      },
-                      React.createElement("option", { value: "all" }, "Todos los colores"),
-                      distinctColors.map((color) => React.createElement("option", { key: color, value: color }, color))
+                      "div",
+                      { className: "flex flex-wrap items-center gap-2" },
+                      React.createElement(
+                        "select",
+                        {
+                          value: colorFilter,
+                          onChange: (e) => setColorFilter(e.target.value),
+                          "aria-label": "Filtrar por color",
+                          className:
+                            "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+                        },
+                        React.createElement("option", { value: "all" }, "Todos los colores"),
+                        distinctColors.map((color) => React.createElement("option", { key: color, value: color }, color))
+                      ),
+                      React.createElement(
+                        "select",
+                        {
+                          value: consoleFilter,
+                          onChange: (e) => setConsoleFilter(e.target.value),
+                          "aria-label": "Filtrar por consola actual",
+                          className:
+                            "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+                        },
+                        CONSOLE_FILTER_OPTIONS.map((opt) => React.createElement("option", { key: opt.value, value: opt.value }, opt.label))
+                      ),
+                      React.createElement(
+                        "select",
+                        {
+                          value: sortBy,
+                          onChange: (e) => setSortBy(e.target.value),
+                          "aria-label": "Ordenar mandos",
+                          className:
+                            "ml-auto px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+                        },
+                        React.createElement("option", { value: "default" }, "Orden: personalizado"),
+                        React.createElement("option", { value: "nombre" }, "Orden: nombre (A-Z)"),
+                        React.createElement("option", { value: "issues" }, "Orden: cantidad de fallas")
+                      )
                     ),
                     React.createElement(
-                      "select",
-                      {
-                        value: sortBy,
-                        onChange: (e) => setSortBy(e.target.value),
-                        "aria-label": "Ordenar mandos",
-                        className:
-                          "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
-                      },
-                      React.createElement("option", { value: "default" }, "Orden: personalizado"),
-                      React.createElement("option", { value: "nombre" }, "Orden: nombre (A-Z)"),
-                      React.createElement("option", { value: "issues" }, "Orden: cantidad de fallas")
+                      "div",
+                      { className: "flex flex-wrap items-center gap-2" },
+                      React.createElement(
+                        "button",
+                        {
+                          type: "button",
+                          onClick: () => setFavoritesOnly((v) => !v),
+                          "aria-pressed": favoritesOnly,
+                          className:
+                            "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
+                            (favoritesOnly ? "bg-accent-900 text-accent-300 border-accent-700" : "border-slate-700 text-slate-400 hover:bg-slate-800"),
+                        },
+                        "★ Solo favoritos"
+                      ),
+                      React.createElement(
+                        "button",
+                        {
+                          type: "button",
+                          onClick: () => setActiveIssuesOnly((v) => !v),
+                          "aria-pressed": activeIssuesOnly,
+                          className:
+                            "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
+                            (activeIssuesOnly ? "bg-accent-900 text-accent-300 border-accent-700" : "border-slate-700 text-slate-400 hover:bg-slate-800"),
+                        },
+                        "Con fallas activas"
+                      ),
+                      React.createElement(
+                        "button",
+                        {
+                          type: "button",
+                          onClick: () => setLimitedEditionOnly((v) => !v),
+                          "aria-pressed": limitedEditionOnly,
+                          className:
+                            "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
+                            (limitedEditionOnly ? "bg-accent-900 text-accent-300 border-accent-700" : "border-slate-700 text-slate-400 hover:bg-slate-800"),
+                        },
+                        "Edición limitada"
+                      )
                     )
                   ),
                 controllers.length === 0
@@ -1487,7 +1852,7 @@ function DualSenseTracker() {
                   ? React.createElement(
                       "div",
                       { className: "text-center py-16 text-slate-500 text-sm" },
-                      hasQuery ? `Sin resultados para "${searchQuery}"` : "No hay mandos de ese color."
+                      hasQuery ? `Sin resultados para "${searchQuery}"` : hasActiveExtraFilter || colorFilter !== "all" ? "No hay mandos que coincidan con los filtros." : "No hay mandos de ese color."
                     )
                   : React.createElement(
                       React.Fragment,
@@ -1500,22 +1865,20 @@ function DualSenseTracker() {
                             React.createElement(ControllerCard, {
                               key: controller.id,
                               controller,
-                              onOpen: () => {
-                                setOpenControllerId(controller.id);
-                                setInitialIssueSearch("");
-                                closeMenu();
-                              },
-                              menuState: openMenu,
-                              onToggleMenu: () => toggleMenu(controller.id),
-                              onEdit: () => openEditController(controller),
-                              onDeleteRequest: () => askConfirmDeleteController(controller.id),
-                              onConfirmDelete: () => deleteController(controller.id),
-                              onToggleFavorite: () => toggleFavorite(controller.id),
+                              onOpen: handleOpenController,
+                              isMenuOpen: !!(openMenu && openMenu.controllerId === controller.id),
+                              menuMode: openMenu && openMenu.controllerId === controller.id ? openMenu.mode : "options",
+                              onToggleMenu: toggleMenu,
+                              onEdit: openEditController,
+                              onDeleteRequest: askConfirmDeleteController,
+                              onConfirmDelete: deleteController,
+                              onToggleFavorite: toggleFavorite,
                               reorderable: sortBy === "default",
                               canMoveUp: index > 0,
                               canMoveDown: index < visibleControllers.length - 1,
-                              onMoveUp: () => moveControllerBy(controller.id, "up"),
-                              onMoveDown: () => moveControllerBy(controller.id, "down"),
+                              onMoveUp: moveControllerUp,
+                              onMoveDown: moveControllerDown,
+                              isFocused: index === focusedIndex,
                             })
                           )
                         ),
@@ -1536,7 +1899,7 @@ function DualSenseTracker() {
                                 key: issue.id,
                                 issue,
                                 controller,
-                                onOpen: () => openIssueInController(controller.id, issue.titulo),
+                                onOpen: openIssueInController,
                               })
                             )
                           )
@@ -1567,6 +1930,10 @@ function DualSenseTracker() {
                       actualVisible: data.actualVisible,
                       edicionTipo: data.edicionTipo,
                       edicionNombre: data.edicionNombre,
+                      precioCompra: data.precioCompra,
+                      fechaCompra: data.fechaCompra,
+                      finGarantia: data.finGarantia,
+                      numeroSerie: data.numeroSerie,
                       notes: data.notes,
                     }
                   : c
@@ -1652,7 +2019,7 @@ function DualSenseTracker() {
                       type: "button",
                       autoFocus: true,
                       onClick: () => setImportState(null),
-                      className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors",
+                      className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors",
                     },
                     "Entendido"
                   )
@@ -1727,7 +2094,7 @@ function DualSenseTracker() {
                           importState.merge.addedControllerIds,
                           importState.merge.addedIssueIdsByController
                         ),
-                      className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors",
+                      className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors",
                     },
                     "Importar"
                   )
@@ -1756,31 +2123,33 @@ function DualSenseTracker() {
                     toast.undo();
                     setToasts((list) => list.filter((t) => t.id !== toast.id));
                   },
-                  className: "text-sm font-medium text-teal-400 hover:text-teal-300 transition-colors",
+                  className: "text-sm font-medium text-accent-400 hover:text-accent-300 transition-colors",
                 },
                 "Deshacer"
               )
           )
         )
-      )
+      ),
+    ReactDOM.createPortal(React.createElement(PrintReport, { controller: printController }), document.getElementById("print-report"))
   );
 }
 
 // ---------------------------------------------------------------------------
 // Componentes genéricos reutilizables
 // ---------------------------------------------------------------------------
-function SearchInput({ value, onChange, placeholder, ariaLabel }) {
+function SearchInput({ value, onChange, placeholder, ariaLabel, inputRef }) {
   return React.createElement(
     "div",
     { className: "relative" },
     React.createElement(Icon, { name: "search", className: "w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2", "aria-hidden": "true" }),
     React.createElement("input", {
+      ref: inputRef,
       value,
       onChange: (e) => onChange(e.target.value),
       placeholder,
       "aria-label": ariaLabel,
       className:
-        "w-full pl-9 pr-9 py-2.5 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+        "w-full pl-9 pr-9 py-2.5 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
     }),
     value &&
       React.createElement(
@@ -1813,7 +2182,7 @@ function EmptyState({ onAdd }) {
     ),
     React.createElement(
       "button",
-      { type: "button", onClick: onAdd, className: "flex items-center gap-1.5 px-4 py-2 rounded-md bg-teal-600 text-white text-sm font-medium hover:bg-teal-500 transition-colors" },
+      { type: "button", onClick: onAdd, className: "flex items-center gap-1.5 px-4 py-2 rounded-md bg-accent-600 text-white text-sm font-medium hover:bg-accent-500 transition-colors" },
       React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
       "Agregar primer mando"
     )
@@ -1823,24 +2192,27 @@ function EmptyState({ onAdd }) {
 function AllIssuesView({ controllers, onOpenIssue }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [urgentOnly, setUrgentOnly] = useState(false);
   const [sortBy, setSortBy] = useState("titulo");
-  const normalizedQuery = normalizeText(query);
+  const normalizedQuery = normalizeText(useDebouncedValue(query, 200));
   const all = useMemo(() => controllers.flatMap((c) => c.issues.map((issue) => ({ issue, controller: c }))), [controllers]);
   const filtered = useMemo(
     () => all.filter(({ issue }) => !query.trim() || issueMatchesQuery(issue, normalizedQuery)),
     [all, query, normalizedQuery]
   );
   const breakdown = useMemo(() => statusBreakdown(filtered.map((x) => x.issue)), [filtered]);
-  const byStatus = useMemo(
-    () => (statusFilter === "all" ? filtered : filtered.filter(({ issue }) => normalizeStatus(issue.status) === statusFilter)),
-    [filtered, statusFilter]
-  );
+  const byStatus = useMemo(() => {
+    let list = statusFilter === "all" ? filtered : filtered.filter(({ issue }) => normalizeStatus(issue.status) === statusFilter);
+    if (urgentOnly) list = list.filter(({ issue }) => issue.urgente);
+    return list;
+  }, [filtered, statusFilter, urgentOnly]);
   const sorted = useMemo(
     () =>
       [...byStatus].sort((a, b) => {
         if (sortBy === "status") return STATUS_ORDER[normalizeStatus(a.issue.status)] - STATUS_ORDER[normalizeStatus(b.issue.status)];
         if (sortBy === "mando") return a.controller.nombre.localeCompare(b.controller.nombre, "es");
         if (sortBy === "recent") return (b.issue.updatedAt || 0) - (a.issue.updatedAt || 0);
+        if (sortBy === "urgencia") return (b.issue.urgente ? 1 : 0) - (a.issue.urgente ? 1 : 0);
         return a.issue.titulo.localeCompare(b.issue.titulo, "es");
       }),
     [byStatus, sortBy]
@@ -1869,7 +2241,7 @@ function AllIssuesView({ controllers, onOpenIssue }) {
                 className:
                   "font-label px-2.5 py-1 text-xs font-medium uppercase tracking-wide rounded-full border transition-colors " +
                   (statusFilter === filter.value
-                    ? "bg-teal-900 text-teal-300 border-teal-700"
+                    ? "bg-accent-900 text-accent-300 border-accent-700"
                     : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"),
               },
               filter.label,
@@ -1877,7 +2249,19 @@ function AllIssuesView({ controllers, onOpenIssue }) {
               count,
               ")"
             );
-          })
+          }),
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: () => setUrgentOnly((v) => !v),
+              "aria-pressed": urgentOnly,
+              className:
+                "font-label px-2.5 py-1 text-xs font-medium uppercase tracking-wide rounded-full border transition-colors " +
+                (urgentOnly ? "bg-red-900 text-red-300 border-red-700" : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"),
+            },
+            "🚩 Solo urgentes"
+          )
         ),
         React.createElement(
           "select",
@@ -1885,12 +2269,13 @@ function AllIssuesView({ controllers, onOpenIssue }) {
             value: sortBy,
             onChange: (e) => setSortBy(e.target.value),
             "aria-label": "Ordenar todas las fallas",
-            className: "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+            className: "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
           },
           React.createElement("option", { value: "titulo" }, "Orden: descripción (A-Z)"),
           React.createElement("option", { value: "status" }, "Orden: estado"),
           React.createElement("option", { value: "mando" }, "Orden: mando (A-Z)"),
-          React.createElement("option", { value: "recent" }, "Orden: actividad reciente")
+          React.createElement("option", { value: "recent" }, "Orden: actividad reciente"),
+          React.createElement("option", { value: "urgencia" }, "Orden: urgencia primero")
         )
       )
     ),
@@ -1906,7 +2291,7 @@ function AllIssuesView({ controllers, onOpenIssue }) {
           "div",
           { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" },
           sorted.map(({ issue, controller }) =>
-            React.createElement(IssueSearchResultCard, { key: issue.id, issue, controller, onOpen: () => onOpenIssue(controller.id, issue.titulo) })
+            React.createElement(IssueSearchResultCard, { key: issue.id, issue, controller, onOpen: onOpenIssue })
           )
         )
   );
@@ -1933,6 +2318,75 @@ function StatCard({ label, value }) {
     { className: "bg-slate-800 border border-slate-700 rounded-lg p-4" },
     React.createElement("p", { className: "font-display text-2xl text-slate-100" }, value),
     React.createElement("p", { className: "font-label text-xs text-slate-500 uppercase tracking-wide mt-1" }, label)
+  );
+}
+
+// Gráfico de fallas por tipo a lo largo del tiempo: una fila por mes (los
+// últimos con datos), con una barra segmentada por tipo. El ancho de cada
+// barra es relativo al mes con más fallas, para que se note el volumen.
+function TypeTimelineChart({ issues }) {
+  const monthly = useMemo(() => {
+    const byMonth = {};
+    issues.forEach((issue) => {
+      if (!issue.createdAt) return;
+      const d = new Date(issue.createdAt);
+      const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      const tipo = issue.tipo && issue.tipo.trim() ? issue.tipo : "Otro";
+      if (!byMonth[key]) byMonth[key] = {};
+      byMonth[key][tipo] = (byMonth[key][tipo] || 0) + 1;
+    });
+    return Object.keys(byMonth)
+      .sort()
+      .slice(-6)
+      .map((key) => {
+        const counts = byMonth[key];
+        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        const [y, m] = key.split("-").map(Number);
+        const label = new Date(y, m - 1, 1).toLocaleDateString("es", { month: "short", year: "2-digit" });
+        return { key, label, counts, total };
+      });
+  }, [issues]);
+  if (monthly.length === 0) return null;
+  const maxTotal = Math.max(1, ...monthly.map((m) => m.total));
+  const typesUsed = [...new Set(monthly.flatMap((m) => Object.keys(m.counts)))].sort(
+    (a, b) => ISSUE_TYPES.indexOf(a) - ISSUE_TYPES.indexOf(b)
+  );
+  function colorFor(tipo) {
+    const i = ISSUE_TYPES.indexOf(tipo);
+    return TYPE_COLORS[(i >= 0 ? i : TYPE_COLORS.length - 1) % TYPE_COLORS.length];
+  }
+  return React.createElement(
+    "div",
+    { className: "flex flex-col gap-2.5 bg-slate-800 border border-slate-700 rounded-lg p-4" },
+    monthly.map((m) =>
+      React.createElement(
+        "div",
+        { key: m.key, className: "flex items-center gap-3" },
+        React.createElement("p", { className: "font-label text-xs text-slate-400 uppercase tracking-wide w-14 shrink-0" }, m.label),
+        React.createElement(
+          "div",
+          { className: "flex-1 h-2.5 bg-slate-900 rounded-full overflow-hidden flex" },
+          typesUsed.map((tipo) => {
+            const count = m.counts[tipo] || 0;
+            if (!count) return null;
+            return React.createElement("div", { key: tipo, style: { width: (count / maxTotal) * 100 + "%", backgroundColor: colorFor(tipo) } });
+          })
+        ),
+        React.createElement("p", { className: "font-label text-xs text-slate-500 w-8 text-right" }, m.total)
+      )
+    ),
+    React.createElement(
+      "div",
+      { className: "flex flex-wrap gap-x-3 gap-y-1.5 pt-1" },
+      typesUsed.map((tipo) =>
+        React.createElement(
+          "span",
+          { key: tipo, className: "flex items-center gap-1.5" },
+          React.createElement("span", { className: "w-2 h-2 rounded-full shrink-0", style: { backgroundColor: colorFor(tipo) } }),
+          React.createElement("span", { className: "font-label text-xs text-slate-500" }, tipo)
+        )
+      )
+    )
   );
 }
 
@@ -1989,6 +2443,8 @@ function StatsView({ controllers }) {
       .filter((x) => hasMeaningfulUpdate(x.issue))
       .sort((a, b) => b.issue.updatedAt - a.issue.updatedAt)
       .slice(0, 5);
+    const totalGastado = issues.reduce((sum, issue) => sum + (issue.costo || 0), 0);
+    const hasCosts = issues.some((issue) => issue.costo != null);
     return {
       issues,
       byStatus,
@@ -2006,6 +2462,8 @@ function StatsView({ controllers }) {
       overdueOrToday,
       upcoming,
       recentActivity,
+      totalGastado,
+      hasCosts,
     };
   }, [controllers]);
   const {
@@ -2025,6 +2483,8 @@ function StatsView({ controllers }) {
     overdueOrToday,
     upcoming,
     recentActivity,
+    totalGastado,
+    hasCosts,
   } = stats;
 
   if (controllers.length === 0) {
@@ -2040,7 +2500,8 @@ function StatsView({ controllers }) {
       React.createElement(StatCard, { label: "Mandos", value: controllers.length }),
       React.createElement(StatCard, { label: "Fallas", value: issues.length }),
       React.createElement(StatCard, { label: "Recordatorios hoy/vencidos", value: overdueOrToday.length }),
-      React.createElement(StatCard, { label: "Recordatorios próximos", value: upcoming.length })
+      React.createElement(StatCard, { label: "Recordatorios próximos", value: upcoming.length }),
+      hasCosts && React.createElement(StatCard, { label: "Gasto total en reparaciones", value: formatMoney(totalGastado) })
     ),
     issues.length > 0 &&
       React.createElement(
@@ -2067,6 +2528,13 @@ function StatsView({ controllers }) {
           typeKeys.map((type) => React.createElement(StatBar, { key: type, label: type, count: byType[type] || 0, total: issues.length, colorClass: "bg-indigo-400" }))
         )
       ),
+    issues.length > 0 &&
+      React.createElement(
+        "div",
+        null,
+        React.createElement("p", { className: "font-label text-xs tracking-widest text-slate-500 uppercase mb-3" }, "Fallas por tipo a lo largo del tiempo"),
+        React.createElement(TypeTimelineChart, { issues })
+      ),
     React.createElement(
       "div",
       null,
@@ -2074,7 +2542,7 @@ function StatsView({ controllers }) {
       React.createElement(
         "div",
         { className: "flex flex-col gap-2.5 bg-slate-800 border border-slate-700 rounded-lg p-4" },
-        colorKeys.map((color) => React.createElement(StatBar, { key: color, label: color, count: byColor[color] || 0, total: controllers.length, colorClass: "bg-teal-400" }))
+        colorKeys.map((color) => React.createElement(StatBar, { key: color, label: color, count: byColor[color] || 0, total: controllers.length, colorClass: "bg-accent-400" }))
       )
     ),
     consoleOrigenKeys.length > 0 &&
@@ -2229,25 +2697,62 @@ function infoChipList(controller, alwaysShow) {
   return chips;
 }
 
-function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, onDeleteRequest, onConfirmDelete, onToggleFavorite, reorderable, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
-  const isOpen = menuState && menuState.controllerId === controller.id;
-  const mode = isOpen ? menuState.mode : "options";
+const ControllerCard = React.memo(function ControllerCard({
+  controller,
+  onOpen,
+  isMenuOpen,
+  menuMode,
+  onToggleMenu,
+  onEdit,
+  onDeleteRequest,
+  onConfirmDelete,
+  onToggleFavorite,
+  reorderable,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  isFocused,
+}) {
+  const controllerId = controller.id;
   const issueCount = controller.issues.length;
   const breakdown = statusBreakdown(controller.issues);
+  const chips = infoChipList(controller);
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    if (isFocused && cardRef.current) cardRef.current.focus();
+  }, [isFocused]);
+
+  // Closures atadas una única vez por tarjeta (estables mientras controller.id
+  // y las funciones que llegan del padre no cambien), para que React.memo
+  // pueda saltarse el re-render de tarjetas que no cambiaron.
+  const handleOpen = useCallback(() => onOpen(controllerId), [controllerId, onOpen]);
+  const handleToggleMenu = useCallback(() => onToggleMenu(controllerId), [controllerId, onToggleMenu]);
+  const handleEdit = useCallback(() => onEdit(controllerId), [controllerId, onEdit]);
+  const handleDeleteRequest = useCallback(() => onDeleteRequest(controllerId), [controllerId, onDeleteRequest]);
+  const handleConfirmDelete = useCallback(() => onConfirmDelete(controllerId), [controllerId, onConfirmDelete]);
+  const handleToggleFavorite = useCallback(() => onToggleFavorite(controllerId), [controllerId, onToggleFavorite]);
+  const handleMoveUp = useCallback(() => onMoveUp(controllerId), [controllerId, onMoveUp]);
+  const handleMoveDown = useCallback(() => onMoveDown(controllerId), [controllerId, onMoveDown]);
+
   return React.createElement(
     "div",
     {
-      onClick: onOpen,
+      ref: cardRef,
+      onClick: handleOpen,
       onKeyDown: (e) => {
         if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
-          onOpen();
+          handleOpen();
         }
       },
       role: "button",
       tabIndex: 0,
       "aria-label": `Ver mando ${controller.nombre || "sin nombre"}`,
-      className: "bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col gap-3 hover:border-slate-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500",
+      className:
+        "bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col gap-3 hover:border-slate-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-500",
+      style: isFocused ? { borderColor: "var(--accent-500)", boxShadow: "0 0 0 2px var(--accent-500)" } : undefined,
     },
     React.createElement(
       "div",
@@ -2257,11 +2762,11 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("p", { className: "text-sm font-semibold text-slate-100 truncate", title: controller.nombre }, controller.nombre || "Mando sin nombre"),
-        infoChipList(controller).length > 0 &&
+        chips.length > 0 &&
           React.createElement(
             "div",
             { className: "flex flex-wrap gap-1 mt-1" },
-            infoChipList(controller).map((chip) =>
+            chips.map((chip) =>
               React.createElement(
                 "span",
                 { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
@@ -2286,14 +2791,21 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
             "button",
             {
               type: "button",
-              onClick: onToggleFavorite,
+              onClick: handleToggleFavorite,
               title: controller.favorite ? "Quitar de favoritos" : "Marcar como favorito",
               "aria-label": controller.favorite ? "Quitar de favoritos" : "Marcar como favorito",
               className: "p-1.5 rounded hover:bg-slate-700 transition-colors " + (controller.favorite ? "text-amber-400 hover:text-amber-300" : "text-slate-500 hover:text-slate-200"),
             },
             React.createElement(Icon, { name: "star", className: "w-3.5 h-3.5", fill: controller.favorite ? "currentColor" : "none" })
           ),
-          React.createElement(ControllerMenu, { isOpen, mode, onToggle: onToggleMenu, onEdit, onDeleteRequest, onConfirmDelete })
+          React.createElement(ControllerMenu, {
+            isOpen: isMenuOpen,
+            mode: menuMode,
+            onToggle: handleToggleMenu,
+            onEdit: handleEdit,
+            onDeleteRequest: handleDeleteRequest,
+            onConfirmDelete: handleConfirmDelete,
+          })
         )
       )
     ),
@@ -2331,7 +2843,7 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
               {
                 type: "button",
                 disabled: !canMoveUp,
-                onClick: onMoveUp,
+                onClick: handleMoveUp,
                 title: "Mover hacia arriba",
                 "aria-label": "Mover hacia arriba",
                 className: "p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
@@ -2343,7 +2855,7 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
               {
                 type: "button",
                 disabled: !canMoveDown,
-                onClick: onMoveDown,
+                onClick: handleMoveDown,
                 title: "Mover hacia abajo",
                 "aria-label": "Mover hacia abajo",
                 className: "p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
@@ -2354,24 +2866,27 @@ function ControllerCard({ controller, onOpen, menuState, onToggleMenu, onEdit, o
         : React.createElement(Icon, { name: "chevronRight", className: "w-4 h-4 text-slate-600" })
     )
   );
-}
+});
 
-function IssueSearchResultCard({ issue, controller, onOpen }) {
+const IssueSearchResultCard = React.memo(function IssueSearchResultCard({ issue, controller, onOpen }) {
   const meta = STATUS_META[normalizeStatus(issue.status)];
+  const controllerId = controller.id;
+  const searchText = issue.titulo;
+  const handleOpen = useCallback(() => onOpen(controllerId, searchText), [controllerId, searchText, onOpen]);
   return React.createElement(
     "div",
     {
-      onClick: onOpen,
+      onClick: handleOpen,
       onKeyDown: (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onOpen();
+          handleOpen();
         }
       },
       role: "button",
       tabIndex: 0,
       "aria-label": `Ver falla ${issue.titulo || "sin descripción"} del mando ${controller.nombre || "sin nombre"}`,
-      className: "bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col gap-2 hover:border-slate-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500",
+      className: "bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col gap-2 hover:border-slate-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-500",
     },
     React.createElement(
       "p",
@@ -2383,7 +2898,14 @@ function IssueSearchResultCard({ issue, controller, onOpen }) {
       "div",
       { className: "flex items-center gap-2 flex-wrap" },
       React.createElement("span", { className: "text-sm font-semibold text-slate-100 truncate" }, issue.titulo || "Sin descripción"),
-      React.createElement("span", { className: `font-label rotate-1 inline-block px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border rounded-sm ${meta.badge}` }, meta.label)
+      React.createElement("span", { className: `font-label rotate-1 inline-block px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border rounded-sm ${meta.badge}` }, meta.label),
+      issue.urgente &&
+        React.createElement(
+          "span",
+          { className: "font-label inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border border-red-700 text-red-300 bg-red-900 rounded-sm" },
+          React.createElement(Icon, { name: "flag", className: "w-2.5 h-2.5", fill: "currentColor" }),
+          "Urgente"
+        )
     ),
     issue.tipo &&
       React.createElement(
@@ -2419,7 +2941,7 @@ function IssueSearchResultCard({ issue, controller, onOpen }) {
         formatDate(issue.reminder)
       )
   );
-}
+});
 
 function ControllerDetail({
   controller,
@@ -2438,31 +2960,60 @@ function ControllerDetail({
   onCancelConfirmIssue,
   initialIssueSearch,
   onSwapIssues,
+  onPrint,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [urgentOnly, setUrgentOnly] = useState(false);
   const [sortBy, setSortBy] = useState("default");
   const [query, setQuery] = useState(initialIssueSearch || "");
   const isMenuOpen = menuState && menuState.controllerId === controller.id;
   const menuMode = isMenuOpen ? menuState.mode : "options";
   const totalIssues = controller.issues.length;
-  const normalizedQuery = normalizeText(query);
+  const normalizedQuery = normalizeText(useDebouncedValue(query, 200));
   const filteredByQuery = useMemo(
     () => controller.issues.filter((issue) => !query.trim() || issueMatchesQuery(issue, normalizedQuery)),
     [controller.issues, query, normalizedQuery]
   );
   const breakdown = useMemo(() => statusBreakdown(filteredByQuery), [filteredByQuery]);
-  const visibleIssues = useMemo(
-    () => sortIssues(statusFilter === "all" ? filteredByQuery : filteredByQuery.filter((issue) => normalizeStatus(issue.status) === statusFilter), sortBy),
-    [filteredByQuery, statusFilter, sortBy]
-  );
+  const visibleIssues = useMemo(() => {
+    let list = statusFilter === "all" ? filteredByQuery : filteredByQuery.filter((issue) => normalizeStatus(issue.status) === statusFilter);
+    if (urgentOnly) list = list.filter((issue) => issue.urgente);
+    return sortIssues(list, sortBy);
+  }, [filteredByQuery, statusFilter, urgentOnly, sortBy]);
+  const totalGastado = useMemo(() => controller.issues.reduce((sum, i) => sum + (i.costo || 0), 0), [controller.issues]);
+  const hasCosts = useMemo(() => controller.issues.some((i) => i.costo != null), [controller.issues]);
+  const garantiaUrgency = controller.finGarantia ? reminderUrgency(controller.finGarantia) : null;
 
-  function moveIssueBy(issueId, direction) {
-    const idx = visibleIssues.findIndex((issue) => issue.id === issueId);
-    if (idx === -1) return;
-    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (targetIdx < 0 || targetIdx >= visibleIssues.length) return;
-    onSwapIssues(issueId, visibleIssues[targetIdx].id);
-  }
+  // Handlers estables para las IssueCard (envueltas en React.memo): en vez de
+  // crear un closure nuevo por cada falla en cada render, se ata una única
+  // vez el id del mando a los callbacks ya estables que llegan del padre.
+  const controllerId = controller.id;
+  const visibleIssuesRef = useRef(visibleIssues);
+  useEffect(() => {
+    visibleIssuesRef.current = visibleIssues;
+  }, [visibleIssues]);
+
+  const handleEditIssueBound = useCallback((issueId) => onEditIssue(controllerId, issueId), [controllerId, onEditIssue]);
+  const handleDeleteIssueRequestBound = useCallback((issueId) => onDeleteIssueRequest(controllerId, issueId), [controllerId, onDeleteIssueRequest]);
+  const handleConfirmDeleteIssueBound = useCallback((issueId) => onConfirmDeleteIssue(controllerId, issueId), [controllerId, onConfirmDeleteIssue]);
+  const handleMoveIssueUp = useCallback(
+    (issueId) => {
+      const list = visibleIssuesRef.current;
+      const idx = list.findIndex((issue) => issue.id === issueId);
+      if (idx <= 0) return;
+      onSwapIssues(controllerId, issueId, list[idx - 1].id);
+    },
+    [controllerId, onSwapIssues]
+  );
+  const handleMoveIssueDown = useCallback(
+    (issueId) => {
+      const list = visibleIssuesRef.current;
+      const idx = list.findIndex((issue) => issue.id === issueId);
+      if (idx === -1 || idx >= list.length - 1) return;
+      onSwapIssues(controllerId, issueId, list[idx + 1].id);
+    },
+    [controllerId, onSwapIssues]
+  );
 
   return React.createElement(
     "div",
@@ -2510,24 +3061,71 @@ function ControllerDetail({
             "button",
             {
               type: "button",
-              onClick: onToggleFavorite,
+              onClick: () => onToggleFavorite(controllerId),
               title: controller.favorite ? "Quitar de favoritos" : "Marcar como favorito",
               "aria-label": controller.favorite ? "Quitar de favoritos" : "Marcar como favorito",
               className: "p-1.5 rounded hover:bg-slate-700 transition-colors " + (controller.favorite ? "text-amber-400 hover:text-amber-300" : "text-slate-500 hover:text-slate-200"),
             },
             React.createElement(Icon, { name: "star", className: "w-3.5 h-3.5", fill: controller.favorite ? "currentColor" : "none" })
           ),
-          React.createElement(ControllerMenu, { isOpen: isMenuOpen, mode: menuMode, onToggle: onToggleMenu, onEdit, onDeleteRequest, onConfirmDelete })
+          React.createElement(ControllerMenu, {
+            isOpen: isMenuOpen,
+            mode: menuMode,
+            onToggle: () => onToggleMenu(controllerId),
+            onEdit: () => onEdit(controllerId),
+            onDeleteRequest: () => onDeleteRequest(controllerId),
+            onConfirmDelete: () => onConfirmDelete(controllerId),
+          })
         )
       )
     ),
     controller.notes && React.createElement("p", { className: "text-sm text-slate-400 italic border-l-2 border-slate-700 pl-3 mt-3 whitespace-pre-wrap" }, controller.notes),
+    (controller.precioCompra != null || controller.fechaCompra || controller.finGarantia || controller.numeroSerie || hasCosts) &&
+      React.createElement(
+        "div",
+        { className: "flex flex-wrap gap-x-4 gap-y-1 mt-3" },
+        controller.precioCompra != null &&
+          React.createElement("p", { className: "font-label text-xs text-slate-400" }, "Precio de compra: ", formatMoney(controller.precioCompra)),
+        controller.fechaCompra &&
+          React.createElement("p", { className: "font-label text-xs text-slate-400" }, "Comprado el ", formatDate(controller.fechaCompra)),
+        controller.numeroSerie &&
+          React.createElement("p", { className: "font-label text-xs text-slate-400" }, "N.º de serie: ", controller.numeroSerie),
+        controller.finGarantia &&
+          React.createElement(
+            "p",
+            {
+              className:
+                "font-label text-xs flex items-center gap-1 " +
+                (garantiaUrgency === "overdue" ? "text-red-400" : garantiaUrgency === "today" ? "text-amber-400" : "text-slate-400"),
+            },
+            React.createElement(Icon, { name: "bell", className: "w-3 h-3" }),
+            "Garantía hasta ",
+            formatDate(controller.finGarantia),
+            garantiaUrgency === "overdue" ? " (vencida)" : garantiaUrgency === "today" ? " (hoy)" : ""
+          ),
+        hasCosts &&
+          React.createElement("p", { className: "font-label text-xs text-slate-400" }, "Total gastado en reparaciones: ", formatMoney(totalGastado))
+      ),
     React.createElement("p", { className: "font-label text-xs text-slate-500 tracking-wide mt-3 mb-6" }, totalIssues, " ", totalIssues === 1 ? "FALLA" : "FALLAS"),
     React.createElement(
-      "button",
-      { type: "button", onClick: onAddIssue, className: "flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-teal-600 text-white text-sm font-medium hover:bg-teal-500 transition-colors mb-6" },
-      React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
-      "Agregar falla"
+      "div",
+      { className: "flex flex-wrap items-center gap-3 mb-6" },
+      React.createElement(
+        "button",
+        { type: "button", onClick: () => onAddIssue(controllerId), className: "flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-accent-600 text-white text-sm font-medium hover:bg-accent-500 transition-colors" },
+        React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
+        "Agregar falla"
+      ),
+      React.createElement(
+        "button",
+        {
+          type: "button",
+          onClick: () => onPrint(controllerId),
+          className: "flex items-center gap-1.5 px-4 py-2.5 rounded-md border border-slate-600 text-slate-300 text-sm font-medium hover:bg-slate-700 transition-colors",
+        },
+        React.createElement(Icon, { name: "printer", className: "w-4 h-4" }),
+        "Exportar PDF"
+      )
     ),
     controller.issues.length > 0 &&
       React.createElement(
@@ -2551,7 +3149,7 @@ function ControllerDetail({
                   className:
                     "font-label px-2.5 py-1 text-xs font-medium uppercase tracking-wide rounded-full border transition-colors " +
                     (statusFilter === filter.value
-                      ? "bg-teal-900 text-teal-300 border-teal-700"
+                      ? "bg-accent-900 text-accent-300 border-accent-700"
                       : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"),
                 },
                 filter.label,
@@ -2559,7 +3157,19 @@ function ControllerDetail({
                 count,
                 ")"
               );
-            })
+            }),
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                onClick: () => setUrgentOnly((v) => !v),
+                "aria-pressed": urgentOnly,
+                className:
+                  "font-label px-2.5 py-1 text-xs font-medium uppercase tracking-wide rounded-full border transition-colors " +
+                  (urgentOnly ? "bg-red-900 text-red-300 border-red-700" : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"),
+              },
+              "🚩 Solo urgentes"
+            )
           ),
           React.createElement(
             "select",
@@ -2567,11 +3177,12 @@ function ControllerDetail({
               value: sortBy,
               onChange: (e) => setSortBy(e.target.value),
               "aria-label": "Ordenar fallas",
-              className: "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+              className: "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
             },
             React.createElement("option", { value: "default" }, "Orden: personalizado"),
             React.createElement("option", { value: "titulo" }, "Orden: descripción (A-Z)"),
-            React.createElement("option", { value: "status" }, "Orden: estado")
+            React.createElement("option", { value: "status" }, "Orden: estado"),
+            React.createElement("option", { value: "urgencia" }, "Orden: urgencia primero")
           )
         )
       ),
@@ -2595,22 +3206,113 @@ function ControllerDetail({
               key: issue.id,
               issue,
               isConfirming: confirmDeleteIssue && confirmDeleteIssue.controllerId === controller.id && confirmDeleteIssue.issueId === issue.id,
-              onEdit: () => onEditIssue(issue),
-              onDelete: () => onDeleteIssueRequest(issue.id),
-              onConfirmDelete: () => onConfirmDeleteIssue(issue.id),
+              onEdit: handleEditIssueBound,
+              onDelete: handleDeleteIssueRequestBound,
+              onConfirmDelete: handleConfirmDeleteIssueBound,
               onCancelConfirm: onCancelConfirmIssue,
               reorderable: sortBy === "default",
               canMoveUp: index > 0,
               canMoveDown: index < visibleIssues.length - 1,
-              onMoveUp: () => moveIssueBy(issue.id, "up"),
-              onMoveDown: () => moveIssueBy(issue.id, "down"),
+              onMoveUp: handleMoveIssueUp,
+              onMoveDown: handleMoveIssueDown,
             })
           )
         )
   );
 }
 
-function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onCancelConfirm, reorderable, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
+// Ficha imprimible de un mando (para el botón "Exportar PDF" del detalle).
+// Se renderiza fuera del árbol visible de la app, en #print-report, y solo
+// se muestra durante la impresión (ver @media print). Usa estilos propios
+// en blanco y negro pensados para papel, no el tema oscuro de la app.
+function PrintReport({ controller }) {
+  if (!controller) return null;
+  const totalGastado = controller.issues.reduce((sum, i) => sum + (i.costo || 0), 0);
+  const hasCosts = controller.issues.some((i) => i.costo != null);
+  const s = {
+    page: { fontFamily: "Arial, Helvetica, sans-serif", color: "#111", padding: "24px", maxWidth: "800px", margin: "0 auto" },
+    h1: { fontSize: "20px", margin: "0 0 4px 0" },
+    sub: { fontSize: "11px", color: "#666", margin: "0 0 20px 0" },
+    section: { marginBottom: "14px" },
+    label: { fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", color: "#666", margin: "0 0 2px 0" },
+    value: { fontSize: "14px", margin: "0" },
+    table: { width: "100%", borderCollapse: "collapse", marginTop: "8px" },
+    th: { textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#666", borderBottom: "1px solid #ccc", padding: "5px 8px" },
+    td: { fontSize: "12px", borderBottom: "1px solid #eee", padding: "5px 8px", verticalAlign: "top" },
+    footer: { fontSize: "10px", color: "#999", marginTop: "24px", borderTop: "1px solid #eee", paddingTop: "8px" },
+  };
+  function field(label, value) {
+    if (!value) return null;
+    return React.createElement("div", { style: s.section }, React.createElement("p", { style: s.label }, label), React.createElement("p", { style: s.value }, value));
+  }
+  return React.createElement(
+    "div",
+    { style: s.page },
+    React.createElement("h1", { style: s.h1 }, "Mis DualSense — Ficha del mando"),
+    React.createElement("p", { style: s.sub }, "Generado el ", formatDate(Date.now())),
+    field("Nombre", controller.nombre || "Mando sin nombre"),
+    field("Color", controller.color || "Sin especificar"),
+    field("Consola de origen", controller.consolaOrigen || "Sin especificar"),
+    field("Consola actual", controller.consolaActual || "Sin especificar"),
+    controller.edicionTipo === "limitada" &&
+      field("Edición", "Edición limitada" + (controller.edicionNombre ? ": " + controller.edicionNombre : "")),
+    controller.precioCompra != null && field("Precio de compra", formatMoney(controller.precioCompra)),
+    controller.fechaCompra && field("Fecha de compra", formatDate(controller.fechaCompra)),
+    controller.numeroSerie && field("Número de serie", controller.numeroSerie),
+    controller.finGarantia && field("Garantía hasta", formatDate(controller.finGarantia)),
+    controller.notes && field("Notas", controller.notes),
+    React.createElement(
+      "div",
+      { style: s.section },
+      React.createElement(
+        "p",
+        { style: s.label },
+        controller.issues.length,
+        " ",
+        controller.issues.length === 1 ? "falla registrada" : "fallas registradas"
+      ),
+      controller.issues.length > 0 &&
+        React.createElement(
+          "table",
+          { style: s.table },
+          React.createElement(
+            "thead",
+            null,
+            React.createElement(
+              "tr",
+              null,
+              React.createElement("th", { style: s.th }, "Descripción"),
+              React.createElement("th", { style: s.th }, "Tipo"),
+              React.createElement("th", { style: s.th }, "Estado"),
+              React.createElement("th", { style: s.th }, "Detectado"),
+              hasCosts && React.createElement("th", { style: s.th }, "Costo"),
+              React.createElement("th", { style: s.th }, "Notas")
+            )
+          ),
+          React.createElement(
+            "tbody",
+            null,
+            controller.issues.map((issue) =>
+              React.createElement(
+                "tr",
+                { key: issue.id },
+                React.createElement("td", { style: s.td }, issue.titulo || "Sin descripción"),
+                React.createElement("td", { style: s.td }, issue.tipo || ""),
+                React.createElement("td", { style: s.td }, STATUS_META[normalizeStatus(issue.status)].label),
+                React.createElement("td", { style: s.td }, formatDate(issue.createdAt)),
+                hasCosts && React.createElement("td", { style: s.td }, issue.costo != null ? formatMoney(issue.costo) : ""),
+                React.createElement("td", { style: s.td }, issue.notes || "")
+              )
+            )
+          )
+        )
+    ),
+    hasCosts && field("Total gastado en reparaciones", formatMoney(totalGastado)),
+    React.createElement("p", { style: s.footer }, "Generado con Mis DualSense.")
+  );
+}
+
+const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onCancelConfirm, reorderable, canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const meta = STATUS_META[normalizeStatus(issue.status)];
   return React.createElement(
     "div",
@@ -2622,13 +3324,26 @@ function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onC
         "div",
         { className: "flex items-center gap-2 flex-wrap mb-1" },
         React.createElement("span", { className: "text-sm text-slate-100 font-semibold truncate" }, issue.titulo || "Sin descripción"),
-        React.createElement("span", { className: `font-label rotate-1 inline-block px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border rounded-sm ${meta.badge}` }, meta.label)
+        React.createElement("span", { className: `font-label rotate-1 inline-block px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border rounded-sm ${meta.badge}` }, meta.label),
+        issue.urgente &&
+          React.createElement(
+            "span",
+            { className: "font-label inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border border-red-700 text-red-300 bg-red-900 rounded-sm" },
+            React.createElement(Icon, { name: "flag", className: "w-2.5 h-2.5", fill: "currentColor" }),
+            "Urgente"
+          )
       ),
       issue.tipo &&
         React.createElement(
           "span",
           { className: "font-label inline-block mb-1.5 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border border-indigo-700 text-indigo-300 bg-indigo-900 rounded-sm" },
           issue.tipo
+        ),
+      issue.costo != null &&
+        React.createElement(
+          "span",
+          { className: "font-label inline-block mb-1.5 ml-1.5 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border border-amber-700 text-amber-300 bg-amber-900 rounded-sm" },
+          "Costo: " + formatMoney(issue.costo)
         ),
       issue.tags &&
         issue.tags.length > 0 &&
@@ -2675,7 +3390,7 @@ function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onC
         ? React.createElement(
             React.Fragment,
             null,
-            React.createElement("button", { type: "button", onClick: onConfirmDelete, className: "text-xs font-medium text-red-400 hover:text-red-300 px-1" }, "Sí"),
+            React.createElement("button", { type: "button", onClick: () => onConfirmDelete(issue.id), className: "text-xs font-medium text-red-400 hover:text-red-300 px-1" }, "Sí"),
             React.createElement("button", { type: "button", onClick: onCancelConfirm, className: "text-xs font-medium text-slate-500 hover:text-slate-300 px-1" }, "No")
           )
         : React.createElement(
@@ -2690,7 +3405,7 @@ function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onC
                   {
                     type: "button",
                     disabled: !canMoveUp,
-                    onClick: onMoveUp,
+                    onClick: () => onMoveUp(issue.id),
                     title: "Mover hacia arriba",
                     "aria-label": "Mover hacia arriba",
                     className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
@@ -2702,7 +3417,7 @@ function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onC
                   {
                     type: "button",
                     disabled: !canMoveDown,
-                    onClick: onMoveDown,
+                    onClick: () => onMoveDown(issue.id),
                     title: "Mover hacia abajo",
                     "aria-label": "Mover hacia abajo",
                     className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
@@ -2712,18 +3427,18 @@ function IssueCard({ issue, isConfirming, onEdit, onDelete, onConfirmDelete, onC
               ),
             React.createElement(
               "button",
-              { type: "button", title: "Editar falla", "aria-label": "Editar falla", onClick: onEdit, className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors" },
+              { type: "button", title: "Editar falla", "aria-label": "Editar falla", onClick: () => onEdit(issue.id), className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors" },
               React.createElement(Icon, { name: "pencil", className: "w-3.5 h-3.5" })
             ),
             React.createElement(
               "button",
-              { type: "button", title: "Eliminar falla", "aria-label": "Eliminar falla", onClick: onDelete, className: "p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-900 transition-colors" },
+              { type: "button", title: "Eliminar falla", "aria-label": "Eliminar falla", onClick: () => onDelete(issue.id), className: "p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-900 transition-colors" },
               React.createElement(Icon, { name: "trash2", className: "w-3.5 h-3.5" })
             )
           )
     )
   );
-}
+});
 
 function ModalShell({ title, onCancel, children }) {
   const ref = useRef(null);
@@ -2788,7 +3503,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
             React.createElement(
               "div",
               { className: "flex items-center gap-2" },
-              React.createElement("span", { className: "w-2 h-2 rounded-full bg-teal-400" }),
+              React.createElement("span", { className: "w-2 h-2 rounded-full bg-accent-400" }),
               React.createElement("p", { className: "text-sm text-slate-200" }, "Conectado a GitHub")
             ),
             React.createElement(
@@ -2798,7 +3513,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
             ),
             React.createElement(
               "a",
-              { href: `https://gist.github.com/${cloudSync.gistId}`, target: "_blank", rel: "noopener noreferrer", className: "text-xs text-teal-400 hover:text-teal-300 underline w-fit" },
+              { href: `https://gist.github.com/${cloudSync.gistId}`, target: "_blank", rel: "noopener noreferrer", className: "text-xs text-accent-400 hover:text-accent-300 underline w-fit" },
               "Ver el gist en GitHub"
             ),
             cloudSync.error && React.createElement("p", { className: "text-xs text-red-400" }, cloudSync.error),
@@ -2817,7 +3532,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                   type: "button",
                   disabled: isSyncing,
                   onClick: onSyncNow,
-                  className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                  className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                 },
                 isSyncing ? "Sincronizando..." : "Sincronizar ahora"
               )
@@ -2845,7 +3560,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                     href: "https://github.com/settings/tokens/new?scopes=gist&description=Mis+DualSense",
                     target: "_blank",
                     rel: "noopener noreferrer",
-                    className: "text-teal-400 hover:text-teal-300 underline",
+                    className: "text-accent-400 hover:text-accent-300 underline",
                   },
                   "github.com/settings/tokens"
                 ),
@@ -2868,7 +3583,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                 onChange: (e) => setToken(e.target.value),
                 onKeyDown: (e) => e.key === "Enter" && token.trim() && onConnect(token.trim()),
                 placeholder: "ghp_...",
-                className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+                className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
               })
             ),
             cloudSync.error && React.createElement("p", { className: "text-xs text-red-400" }, cloudSync.error),
@@ -2882,7 +3597,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                   type: "button",
                   disabled: !token.trim() || isConnecting,
                   onClick: () => onConnect(token.trim()),
-                  className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                  className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                 },
                 isConnecting ? "Conectando..." : "Conectar"
               )
@@ -2919,6 +3634,10 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
   const [actualVisible, setActualVisible] = useState(initial.actualVisible !== false);
   const [edicionTipo, setEdicionTipo] = useState(initial.edicionTipo || "");
   const [edicionNombre, setEdicionNombre] = useState(initial.edicionNombre || "");
+  const [precioCompra, setPrecioCompra] = useState(initial.precioCompra != null ? String(initial.precioCompra) : "");
+  const [fechaCompraValue, setFechaCompraValue] = useState(timestampToDateInputValue(initial.fechaCompra));
+  const [finGarantiaValue, setFinGarantiaValue] = useState(timestampToDateInputValue(initial.finGarantia));
+  const [numeroSerie, setNumeroSerie] = useState(initial.numeroSerie || "");
   const [notes, setNotes] = useState(initial.notes || "");
   const [error, setError] = useState("");
 
@@ -2944,6 +3663,10 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
       actualVisible,
       edicionTipo,
       edicionNombre: edicionTipo === "limitada" ? edicionNombre.trim() : "",
+      precioCompra: precioCompra.trim() === "" ? null : Number(precioCompra),
+      fechaCompra: dateInputValueToTimestamp(fechaCompraValue),
+      finGarantia: dateInputValueToTimestamp(finGarantiaValue),
+      numeroSerie: numeroSerie.trim(),
       notes: notes.trim(),
     });
   }
@@ -2971,7 +3694,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
           "aria-invalid": !!error,
           className:
             "w-full px-3 py-2 rounded-md border bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 " +
-            (error ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-teal-500 focus:border-teal-500"),
+            (error ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-accent-500 focus:border-accent-500"),
         }),
         error && React.createElement("p", { className: "text-xs text-red-400 mt-1" }, error)
       ),
@@ -2988,7 +3711,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
             value: color,
             onChange: (e) => handleColorTextChange(e.target.value),
             placeholder: "Ej: Blanco, Midnight Black, edición especial...",
-            className: "flex-1 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+            className: "flex-1 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
           }),
           React.createElement("input", {
             type: "color",
@@ -3023,7 +3746,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
             {
               value: consolaOrigen,
               onChange: (e) => setConsolaOrigen(e.target.value),
-              className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+              className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
             },
             CONSOLE_ORIGEN_OPTIONS.map((model) => React.createElement("option", { key: model || "none", value: model }, model || "Sin especificar"))
           )
@@ -3042,7 +3765,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
             {
               value: consolaActual,
               onChange: (e) => setConsolaActual(e.target.value),
-              className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+              className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
             },
             PS5_MODELS.map((model) => React.createElement("option", { key: model || "none", value: model }, model || "Sin especificar"))
           )
@@ -3057,7 +3780,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
           {
             value: edicionTipo,
             onChange: (e) => setEdicionTipo(e.target.value),
-            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
           },
           EDITION_TYPES.map((option) => React.createElement("option", { key: option.value || "none", value: option.value }, option.label))
         ),
@@ -3069,8 +3792,78 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
             onChange: (e) => setEdicionNombre(e.target.value),
             placeholder: "Nombre de la edición (ej: God of War Ragnarök)",
             className:
-              "w-full mt-2 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+              "w-full mt-2 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
           })
+      ),
+      React.createElement(
+        "div",
+        { className: "grid grid-cols-2 gap-2" },
+        React.createElement(
+          "div",
+          null,
+          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Precio de compra (opcional)"),
+          React.createElement("input", {
+            type: "number",
+            inputMode: "decimal",
+            min: "0",
+            step: "0.01",
+            value: precioCompra,
+            onChange: (e) => setPrecioCompra(e.target.value),
+            placeholder: "Ej: 65000",
+            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+          })
+        ),
+        React.createElement(
+          "div",
+          null,
+          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Fecha de compra (opcional)"),
+          React.createElement("input", {
+            type: "date",
+            value: fechaCompraValue,
+            onChange: (e) => setFechaCompraValue(e.target.value),
+            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+          })
+        )
+      ),
+      React.createElement(
+        "div",
+        null,
+        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Fin de garantía (opcional)"),
+        React.createElement(
+          "div",
+          { className: "flex gap-2" },
+          React.createElement("input", {
+            type: "date",
+            value: finGarantiaValue,
+            onChange: (e) => {
+              setFinGarantiaValue(e.target.value);
+              if (e.target.value && typeof Notification !== "undefined" && Notification.permission === "default") {
+                Notification.requestPermission().catch(() => {});
+              }
+            },
+            className: "flex-1 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+          }),
+          finGarantiaValue &&
+            React.createElement(
+              "button",
+              { type: "button", onClick: () => setFinGarantiaValue(""), className: "px-3 py-2 rounded-md text-xs font-medium text-slate-400 hover:bg-slate-700 transition-colors" },
+              "Quitar"
+            )
+        ),
+        React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "Se avisa en el detalle del mando cuando está por vencer o ya venció.")
+      ),
+      React.createElement(
+        "div",
+        null,
+        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Número de serie (opcional)"),
+        React.createElement("input", {
+          type: "text",
+          value: numeroSerie,
+          onChange: (e) => setNumeroSerie(e.target.value),
+          placeholder: "Ej: 44205G0123456",
+          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+        }),
+        React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "Útil para trámites de garantía.")
       ),
       React.createElement(
         "div",
@@ -3079,16 +3872,16 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
         React.createElement("textarea", {
           value: notes,
           onChange: (e) => setNotes(e.target.value),
-          placeholder: "Fecha de compra, número de serie, garantía...",
+          placeholder: "Número de serie, detalles adicionales...",
           rows: 2,
-          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
         })
       ),
       React.createElement(
         "div",
         { className: "flex justify-end gap-2 mt-1" },
         React.createElement("button", { type: "button", onClick: onCancel, className: "px-3.5 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-slate-700 transition-colors" }, "Cancelar"),
-        React.createElement("button", { type: "button", onClick: handleSave, className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors" }, "Guardar")
+        React.createElement("button", { type: "button", onClick: handleSave, className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors" }, "Guardar")
       )
     )
   );
@@ -3099,6 +3892,8 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
   const [tipo, setTipo] = useState(initial.tipo || ISSUE_TYPES[0]);
   const [status, setStatus] = useState(normalizeStatus(initial.status));
   const [notes, setNotes] = useState(initial.notes);
+  const [costoValue, setCostoValue] = useState(initial.costo != null ? String(initial.costo) : "");
+  const [urgente, setUrgente] = useState(!!initial.urgente);
   const [tagsText, setTagsText] = useState((initial.tags || []).join(", "));
   const [reminderValue, setReminderValue] = useState(timestampToDateInputValue(initial.reminder));
   const [titleError, setTitleError] = useState(false);
@@ -3112,11 +3907,12 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
     const now = Date.now();
     const tags = [...new Set(tagsText.split(",").map((t) => t.trim()).filter(Boolean))];
     const reminder = dateInputValueToTimestamp(reminderValue);
+    const costo = costoValue.trim() === "" ? null : Number(costoValue);
     const previousStatus = initial.status ? normalizeStatus(initial.status) : null;
     const statusChanged = mode === "new" || previousStatus !== status;
     const statusHistory = Array.isArray(initial.statusHistory) ? [...initial.statusHistory] : [];
     if (statusChanged) statusHistory.push({ status, changedAt: now });
-    return { ...initial, titulo: finalTitulo, tipo, status, notes: notes.trim(), tags, reminder, updatedAt: now, statusHistory };
+    return { ...initial, titulo: finalTitulo, tipo, status, notes: notes.trim(), costo, urgente, tags, reminder, updatedAt: now, statusHistory };
   }
 
   function handleSave() {
@@ -3175,7 +3971,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
               type: "button",
               autoFocus: true,
               onClick: () => setDuplicateFlow({ phase: "confirm", existing }),
-              className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors",
+              className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors",
             },
             "Entendido"
           )
@@ -3210,7 +4006,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
           "aria-invalid": titleError,
           className:
             "w-full px-3 py-2 rounded-md border bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 " +
-            (titleError ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-teal-500 focus:border-teal-500"),
+            (titleError ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-accent-500 focus:border-accent-500"),
         }),
         titleError && React.createElement("p", { className: "text-xs text-red-400 mt-1" }, "Ingresá una descripción para guardar la falla.")
       ),
@@ -3223,7 +4019,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
           {
             value: tipo,
             onChange: (e) => setTipo(e.target.value),
-            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+            className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
           },
           ISSUE_TYPES.map((type) => React.createElement("option", { key: type, value: type }, type))
         )
@@ -3251,6 +4047,34 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
         )
       ),
       React.createElement(
+        "button",
+        {
+          type: "button",
+          onClick: () => setUrgente((u) => !u),
+          "aria-pressed": urgente,
+          className:
+            "w-full flex items-center justify-center gap-2 py-2 rounded-md border text-xs font-medium font-label uppercase tracking-wide transition-colors " +
+            (urgente ? "bg-red-900 text-red-300 border-red-700" : "border-slate-600 text-slate-500 hover:border-slate-500"),
+        },
+        React.createElement(Icon, { name: "flag", className: "w-3.5 h-3.5", fill: urgente ? "currentColor" : "none" }),
+        urgente ? "Marcada como urgente" : "Marcar como urgente"
+      ),
+      React.createElement(
+        "div",
+        null,
+        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Costo de la reparación (opcional)"),
+        React.createElement("input", {
+          type: "number",
+          inputMode: "decimal",
+          min: "0",
+          step: "0.01",
+          value: costoValue,
+          onChange: (e) => setCostoValue(e.target.value),
+          placeholder: "Ej: 8000",
+          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+        })
+      ),
+      React.createElement(
         "div",
         null,
         React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Etiquetas (opcional)"),
@@ -3258,7 +4082,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
           value: tagsText,
           onChange: (e) => setTagsText(e.target.value),
           placeholder: "bajo garantía, service, comprado 2024...",
-          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
         }),
         React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "Separadas por coma.")
       ),
@@ -3278,7 +4102,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
                 Notification.requestPermission().catch(() => {});
               }
             },
-            className: "flex-1 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+            className: "flex-1 px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
           }),
           reminderValue &&
             React.createElement(
@@ -3297,7 +4121,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
           onChange: (e) => setNotes(e.target.value),
           placeholder: "Contexto, qué tan seguido pasa, qué probaste ya...",
           rows: 3,
-          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500",
+          className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
         })
       ),
       history.length > 0 &&
@@ -3355,7 +4179,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
         { className: "flex justify-end gap-2 mt-1" },
         React.createElement("button", { type: "button", onClick: onCancel, className: "px-3.5 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-slate-700 transition-colors" }, "Cancelar"),
         !isConfirming &&
-          React.createElement("button", { type: "button", onClick: handleSave, className: "px-3.5 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500 transition-colors" }, "Guardar")
+          React.createElement("button", { type: "button", onClick: handleSave, className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors" }, "Guardar")
       )
     )
   );
