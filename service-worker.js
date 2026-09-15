@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-dualsense-v6';
+const CACHE_NAME = 'mis-dualsense-v7';
 
 const APP_SHELL = [
   './index.html',
@@ -95,3 +95,4 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
