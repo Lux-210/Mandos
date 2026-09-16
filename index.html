@@ -747,6 +747,17 @@ function warrantyAlertLevel(finGarantia) {
   return null;
 }
 
+// Textos cortos en español para diferencias de días, con el caso especial de
+// "hoy" en vez de "hace 0 días" / "en 0 días".
+function formatDaysAgo(days) {
+  if (days === 0) return "hoy";
+  return "hace " + days + (days === 1 ? " día" : " días");
+}
+function formatDaysAhead(days) {
+  if (days === 0) return "hoy";
+  return "en " + days + (days === 1 ? " día" : " días");
+}
+
 // ---------------------------------------------------------------------------
 // Reordenamiento por drag & drop: solo se reordena el subconjunto visible
 // (según filtros activos) pero el resultado se aplica sobre la lista
@@ -1265,9 +1276,14 @@ const IDB_NAME = "mis-dualsense-db";
 const IDB_STORE = "kv";
 const IDB_DATA_KEY = "controllers";
 
+// Se cachea la conexión (en vez de abrir una nueva por cada lectura/escritura)
+// para no acumular conexiones IndexedDB abiertas de más.
+let idbConnectionPromise = null;
 function idbOpen() {
-  return new Promise((resolve, reject) => {
+  if (idbConnectionPromise) return idbConnectionPromise;
+  idbConnectionPromise = new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
+      idbConnectionPromise = null;
       reject(new Error("IndexedDB no disponible"));
       return;
     }
@@ -1276,8 +1292,12 @@ function idbOpen() {
       if (!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE);
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      idbConnectionPromise = null;
+      reject(req.error);
+    };
   });
+  return idbConnectionPromise;
 }
 
 async function idbGet(key) {
@@ -2635,11 +2655,11 @@ function StatBar({ label, count, total, colorClass }) {
   );
 }
 
-function StatCard({ label, value }) {
+function StatCard({ label, value, small }) {
   return React.createElement(
     "div",
     { className: "bg-slate-800 border border-slate-700 rounded-lg p-4" },
-    React.createElement("p", { className: "font-display text-2xl text-slate-100" }, value),
+    React.createElement("p", { className: (small ? "font-display text-sm" : "font-display text-2xl") + " text-slate-100" }, value),
     React.createElement("p", { className: "font-label text-xs text-slate-500 uppercase tracking-wide mt-1" }, label)
   );
 }
@@ -2834,7 +2854,7 @@ function StatsView({ controllers }) {
       { className: "grid grid-cols-2 sm:grid-cols-4 gap-4" },
       React.createElement(StatCard, { label: "Mandos", value: controllers.length }),
       React.createElement(StatCard, { label: "Fallas", value: issues.length }),
-      mostFrequentTypeKey && React.createElement(StatCard, { label: "Falla más frecuente", value: mostFrequentTypeKey }),
+      mostFrequentTypeKey && React.createElement(StatCard, { label: "Falla más frecuente", value: mostFrequentTypeKey, small: true }),
       React.createElement(StatCard, { label: "Recordatorios hoy/vencidos", value: overdueOrToday.length }),
       React.createElement(StatCard, { label: "Recordatorios próximos", value: upcoming.length }),
       warrantyAlerts.length > 0 && React.createElement(StatCard, { label: "Garantías por vencer", value: warrantyAlerts.length }),
@@ -2951,7 +2971,7 @@ function StatsView({ controllers }) {
               React.createElement(
                 "p",
                 { className: "font-label text-xs shrink-0 " + (level === "expired" ? "text-red-400" : "text-amber-400") },
-                level === "expired" ? "Venció hace " + Math.abs(days) + (Math.abs(days) === 1 ? " día" : " días") : "Vence en " + days + (days === 1 ? " día" : " días")
+                level === "expired" ? "Venció " + formatDaysAgo(Math.abs(days)) : "Vence " + formatDaysAhead(days)
               )
             )
           )
@@ -3172,9 +3192,10 @@ const ControllerCard = React.memo(function ControllerCard({
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("p", { className: "text-sm font-semibold text-slate-100 truncate", title: controller.nombre }, controller.nombre || "Mando sin nombre"),
-        React.createElement(
-          "div",
-          { className: "flex flex-wrap gap-1 mt-1" },
+        (estado !== "activo" || warrantyLevel || chips.length > 0) &&
+          React.createElement(
+            "div",
+            { className: "flex flex-wrap gap-1 mt-1" },
           estado !== "activo" &&
             React.createElement(
               "span",
@@ -3190,7 +3211,7 @@ const ControllerCard = React.memo(function ControllerCard({
                   (loanOverdue ? "text-red-400 border-red-700" : ""),
               },
               controller.prestadoA ? "A " + controller.prestadoA : "Prestado",
-              loanDays != null ? " · hace " + loanDays + (loanDays === 1 ? " día" : " días") : ""
+              loanDays != null ? " · " + formatDaysAgo(loanDays) : ""
             ),
           warrantyLevel &&
             React.createElement(
@@ -3478,6 +3499,11 @@ function ControllerDetail({
     return sortIssues(list, sortBy);
   }, [filteredByQuery, statusFilter, urgentOnly, sortBy]);
   const totalGastado = useMemo(() => controller.issues.reduce((sum, i) => sum + (i.costo || 0), 0), [controller.issues]);
+  const estado = normalizeControllerStatus(controller.estado);
+  const estadoMeta = CONTROLLER_STATUS_META[estado];
+  const loanDays = loanDaysElapsed(controller);
+  const loanOverdue = isLoanOverdue(controller);
+  const detailChips = infoChipList(controller, true);
   const hasCosts = useMemo(() => controller.issues.some((i) => i.costo != null), [controller.issues]);
   const garantiaUrgency = controller.finGarantia ? reminderUrgency(controller.finGarantia) : null;
 
@@ -3529,34 +3555,35 @@ function ControllerDetail({
         { className: "min-w-0 flex-1" },
         React.createElement("p", { className: "font-label text-xs tracking-wide text-slate-500 uppercase mb-1" }, "Mando"),
         React.createElement("h2", { className: "font-display text-2xl sm:text-3xl text-slate-100 truncate" }, controller.nombre || "Mando sin nombre"),
-        React.createElement(
-          "div",
-          { className: "flex flex-wrap gap-1 mt-1.5" },
-          normalizeControllerStatus(controller.estado) !== "activo" &&
-            React.createElement(
-              "span",
-              { className: `font-label inline-block shrink-0 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border rounded-sm ${CONTROLLER_STATUS_META[normalizeControllerStatus(controller.estado)].badge}` },
-              CONTROLLER_STATUS_META[normalizeControllerStatus(controller.estado)].label
-            ),
-          normalizeControllerStatus(controller.estado) === "prestado" &&
-            React.createElement(
-              "span",
-              {
-                className:
-                  "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded " +
-                  (isLoanOverdue(controller) ? "text-red-400 border-red-700" : ""),
-              },
-              controller.prestadoA ? "Prestado a " + controller.prestadoA : "Prestado",
-              loanDaysElapsed(controller) != null ? " · hace " + loanDaysElapsed(controller) + (loanDaysElapsed(controller) === 1 ? " día" : " días") : ""
-            ),
-          infoChipList(controller, true).map((chip) =>
-            React.createElement(
-              "span",
-              { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
-              chip.text
+        (estado !== "activo" || detailChips.length > 0) &&
+          React.createElement(
+            "div",
+            { className: "flex flex-wrap gap-1 mt-1.5" },
+            estado !== "activo" &&
+              React.createElement(
+                "span",
+                { className: `font-label inline-block shrink-0 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border rounded-sm ${estadoMeta.badge}` },
+                estadoMeta.label
+              ),
+            estado === "prestado" &&
+              React.createElement(
+                "span",
+                {
+                  className:
+                    "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded " +
+                    (loanOverdue ? "text-red-400 border-red-700" : ""),
+                },
+                controller.prestadoA ? "Prestado a " + controller.prestadoA : "Prestado",
+                loanDays != null ? " · " + formatDaysAgo(loanDays) : ""
+              ),
+            detailChips.map((chip) =>
+              React.createElement(
+                "span",
+                { key: chip.key, className: "font-label inline-block shrink-0 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
+                chip.text
+              )
             )
           )
-        )
       ),
       React.createElement(
         "div",
@@ -3758,6 +3785,7 @@ function PrintReport({ controller }) {
   if (!controller) return null;
   const totalGastado = controller.issues.reduce((sum, i) => sum + (i.costo || 0), 0);
   const hasCosts = controller.issues.some((i) => i.costo != null);
+  const estado = normalizeControllerStatus(controller.estado);
   const s = {
     page: { fontFamily: "Arial, Helvetica, sans-serif", color: "#111", padding: "24px", maxWidth: "800px", margin: "0 auto" },
     h1: { fontSize: "20px", margin: "0 0 4px 0" },
@@ -3781,8 +3809,8 @@ function PrintReport({ controller }) {
     React.createElement("p", { style: s.sub }, "Generado el ", formatDate(Date.now())),
     field("Nombre", controller.nombre || "Mando sin nombre"),
     field("Color", controller.color || "Sin especificar"),
-    normalizeControllerStatus(controller.estado) !== "activo" && field("Estado", CONTROLLER_STATUS_META[normalizeControllerStatus(controller.estado)].label),
-    normalizeControllerStatus(controller.estado) === "prestado" &&
+    estado !== "activo" && field("Estado", CONTROLLER_STATUS_META[estado].label),
+    estado === "prestado" &&
       field("Préstamo", (controller.prestadoA ? "A " + controller.prestadoA : "Prestado") + (controller.prestadoDesde ? " desde el " + formatDate(controller.prestadoDesde) : "")),
     field("Consola de origen", controller.consolaOrigen || "Sin especificar"),
     field("Consola actual", controller.consolaActual || "Sin especificar"),
