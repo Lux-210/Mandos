@@ -382,6 +382,50 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     body > *:not(#print-report) { display: none !important; }
     #print-report { display: block !important; background: #fff; }
   }
+
+  /* Utilidades de Tailwind que el build purgado no incluía. Sin ellas, varias
+     partes de la app no se veían bien: el indicador de "cambios sin
+     exportar", el resaltado del color de acento elegido en Configuración,
+     los separadores y la respiración entre secciones, el cursor de
+     arrastrar en las tarjetas, el botón "ojo" de las tarjetas, el punto de
+     aviso sobre el ícono de Configuración, y el desplazamiento del modal de
+     edición cuando el contenido no entra en la pantalla. */
+  .-m-1 { margin: -.25rem; }
+  .-right-0\.5 { right: -.125rem; }
+  .-top-0\.5 { top: -.125rem; }
+  .bg-slate-600 { --tw-bg-opacity: 1; background-color: rgb(71 85 105 / var(--tw-bg-opacity, 1)); }
+  .border-t { border-top-width: 1px; }
+  .cursor-grab { cursor: grab; }
+  .disabled\:opacity-40:disabled { opacity: .4; }
+  .gap-5 { gap: 1.25rem; }
+  .gap-x-3 { column-gap: .75rem; }
+  .gap-x-4 { column-gap: 1rem; }
+  .gap-y-1 { row-gap: .25rem; }
+  .gap-y-1\.5 { row-gap: .375rem; }
+  .hover\:bg-slate-800:hover { --tw-bg-opacity: 1; background-color: rgb(30 41 59 / var(--tw-bg-opacity, 1)); }
+  .hover\:opacity-100:hover { opacity: 1; }
+  .hover\:text-slate-400:hover { --tw-text-opacity: 1; color: rgb(148 163 184 / var(--tw-text-opacity, 1)); }
+  .max-h-\[90vh\] { max-height: 90vh; }
+  .ml-1\.5 { margin-left: .375rem; }
+  .ml-auto { margin-left: auto; }
+  .mt-0\.5 { margin-top: .125rem; }
+  .pb-3 { padding-bottom: .75rem; }
+  .pb-4 { padding-bottom: 1rem; }
+  .pt-4 { padding-top: 1rem; }
+  .right-1 { right: .25rem; }
+  .ring-2 { --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color); --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color); box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000); }
+  .ring-offset-2 { --tw-ring-offset-width: 2px; }
+  .ring-offset-slate-800 { --tw-ring-offset-color: #1e293b; }
+  .ring-slate-300 { --tw-ring-opacity: 1; --tw-ring-color: rgb(203 213 225 / var(--tw-ring-opacity, 1)); }
+  .ring-slate-900 { --tw-ring-opacity: 1; --tw-ring-color: rgb(15 23 42 / var(--tw-ring-opacity, 1)); }
+  .scale-110 { --tw-scale-x: 1.1; --tw-scale-y: 1.1; transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y)); }
+  .top-1 { top: .25rem; }
+  .transition-transform { transition-property: transform; transition-timing-function: cubic-bezier(.4, 0, .2, 1); transition-duration: .15s; }
+  .w-14 { width: 3.5rem; }
+  .w-px { width: 1px; }
+  @media (min-width: 640px) {
+    .sm\:block { display: block; }
+  }
 </style>
 </head>
 <body>
@@ -1949,7 +1993,7 @@ function DualSenseTracker() {
                   React.createElement(
                     "p",
                     { className: "text-xs text-slate-500 mt-1" },
-                    "Se guarda automáticamente en este dispositivo. Para llevarlo a otro o sincronizarlo, abrí Configuración."
+                    "Se guarda automáticamente en este dispositivo. Para llevarlo a otro o sincronizarlo, abre Configuración."
                   ),
                   controllers.length > 0 &&
                     React.createElement(
@@ -1971,14 +2015,18 @@ function DualSenseTracker() {
                     onClick: () => setSettingsModalOpen(true),
                     title: "Configuración",
                     "aria-label": "Abrir configuración",
-                    className: "relative shrink-0 p-2.5 rounded-md border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors",
+                    className: "shrink-0 p-2.5 rounded-md border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors",
                   },
-                  React.createElement(Icon, { name: "settings", className: "w-5 h-5" }),
-                  (hasUnsavedExport || (cloudSync.connected && cloudSync.status === "syncing")) &&
-                    React.createElement("span", {
-                      className: "absolute top-1 right-1 w-2 h-2 rounded-full bg-accent-400",
-                      "aria-hidden": "true",
-                    })
+                  React.createElement(
+                    "span",
+                    { className: "relative inline-block w-5 h-5" },
+                    React.createElement(Icon, { name: "settings", className: "w-5 h-5 block" }),
+                    (hasUnsavedExport || (cloudSync.connected && cloudSync.status === "syncing")) &&
+                      React.createElement("span", {
+                        className: "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-400 ring-2 ring-slate-900",
+                        "aria-hidden": "true",
+                      })
+                  )
                 ),
                 React.createElement("input", {
                   ref: fileInputRef,
@@ -2298,7 +2346,10 @@ function DualSenseTracker() {
           exportControllers(controllers);
           setHasUnsavedExport(false);
         },
-        onExportCSV: () => exportControllersCSV(controllers),
+        onExportCSV: () => {
+          exportControllersCSV(controllers);
+          setHasUnsavedExport(false);
+        },
         onImportJSON: () => {
           setSettingsModalOpen(false);
           fileInputRef.current && fileInputRef.current.click();
@@ -4000,7 +4051,7 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
   );
 });
 
-function ModalShell({ title, onCancel, children }) {
+function ModalShell({ title, titleClassName, onCancel, children }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
@@ -4026,15 +4077,21 @@ function ModalShell({ title, onCancel, children }) {
   }, []);
   return React.createElement(
     "div",
-    { className: "fixed inset-0 z-50 flex items-center justify-center p-4", onClick: (e) => e.stopPropagation() },
+    { className: "fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto", onClick: (e) => e.stopPropagation() },
     React.createElement("div", { className: "absolute inset-0 bg-black opacity-70", onClick: onCancel }),
     React.createElement(
       "div",
-      { ref, role: "dialog", "aria-modal": "true", "aria-labelledby": "dualsense-modal-title", className: "relative bg-slate-800 border border-slate-700 rounded-lg w-full max-w-sm p-5" },
+      {
+        ref,
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-labelledby": "dualsense-modal-title",
+        className: "relative bg-slate-800 border border-slate-700 rounded-lg w-full max-w-sm max-h-[90vh] overflow-y-auto p-5",
+      },
       React.createElement(
         "div",
         { className: "flex items-center justify-between mb-4" },
-        React.createElement("h3", { id: "dualsense-modal-title", className: "font-label text-xs tracking-wide text-slate-500 uppercase" }, title),
+        React.createElement("h3", { id: "dualsense-modal-title", className: titleClassName || "font-label text-xs tracking-wide text-slate-500 uppercase" }, title),
         React.createElement(
           "button",
           { type: "button", onClick: onCancel, "aria-label": "Cerrar", className: "p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700" },
@@ -4171,16 +4228,19 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
 // encabezado (color de acento, sincronización, exportar/importar) detrás de
 // un único botón de engranaje en la esquina superior derecha.
 function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasControllers, hasUnsavedExport, onExportJSON, onExportCSV, onImportJSON, onClose }) {
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const showExportBadge = hasUnsavedExport && hasControllers;
   return React.createElement(
     ModalShell,
-    { title: "Configuración", onCancel: onClose },
+    { title: "Configuración", titleClassName: "font-label text-sm tracking-wide text-slate-300 uppercase", onCancel: onClose },
     React.createElement(
       "div",
       { className: "flex flex-col gap-5" },
       React.createElement(
         "div",
         null,
-        React.createElement("p", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-2" }, "Apariencia"),
+        React.createElement("p", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-3" }, "Apariencia"),
         React.createElement(
           "div",
           { className: "flex items-center gap-2" },
@@ -4196,6 +4256,92 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                 "w-5 h-5 rounded-full transition-transform " + (accent === opt.value ? "ring-2 ring-offset-2 ring-offset-slate-800 ring-slate-300 scale-110" : "opacity-70 hover:opacity-100"),
               style: { backgroundColor: opt.hex },
             })
+          )
+        )
+      ),
+      React.createElement(
+        "div",
+        { className: "border-t border-slate-700 pt-4" },
+        React.createElement("p", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-2" }, "Datos"),
+        React.createElement(
+          "div",
+          { className: "flex flex-col gap-2" },
+          React.createElement(
+            "div",
+            { className: "rounded-md border border-slate-600 overflow-hidden" },
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                onClick: () => setExportOpen((v) => !v),
+                "aria-expanded": exportOpen,
+                className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+              },
+              React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
+              "Exportar",
+              showExportBadge && React.createElement("span", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0", "aria-hidden": "true" }),
+              React.createElement(Icon, { name: exportOpen ? "chevronUp" : "chevronDown", className: "w-4 h-4 ml-auto text-slate-500" })
+            ),
+            exportOpen &&
+              React.createElement(
+                "div",
+                { className: "flex flex-col gap-2 px-3 pb-3 pt-1 border-t border-slate-700" },
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    disabled: !hasControllers,
+                    onClick: onExportJSON,
+                    className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                  },
+                  React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
+                  "Exportar JSON",
+                  showExportBadge && React.createElement("span", { className: "font-label text-xs text-amber-400 ml-auto" }, "cambios sin exportar")
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    disabled: !hasControllers,
+                    onClick: onExportCSV,
+                    className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                  },
+                  React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
+                  "Exportar CSV",
+                  showExportBadge && React.createElement("span", { className: "font-label text-xs text-amber-400 ml-auto" }, "cambios sin exportar")
+                )
+              )
+          ),
+          React.createElement(
+            "div",
+            { className: "rounded-md border border-slate-600 overflow-hidden" },
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                onClick: () => setImportOpen((v) => !v),
+                "aria-expanded": importOpen,
+                className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+              },
+              React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
+              "Importar",
+              React.createElement(Icon, { name: importOpen ? "chevronUp" : "chevronDown", className: "w-4 h-4 ml-auto text-slate-500" })
+            ),
+            importOpen &&
+              React.createElement(
+                "div",
+                { className: "px-3 pb-3 pt-1 border-t border-slate-700" },
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: onImportJSON,
+                    className: "w-full flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+                  },
+                  React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
+                  "Importar JSON"
+                )
+              )
           )
         )
       ),
@@ -4228,45 +4374,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
             cloudSync.connected ? "Gestionar" : "Conectar"
           )
         ),
-        React.createElement("p", { className: "text-xs text-slate-500 mt-1.5" }, "Cada pocos minutos se sincroniza sola; también podés forzarla desde acá.")
-      ),
-      React.createElement(
-        "div",
-        { className: "border-t border-slate-700 pt-4" },
-        React.createElement("p", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-2" }, "Datos"),
-        React.createElement(
-          "div",
-          { className: "flex flex-col gap-2" },
-          React.createElement(
-            "button",
-            {
-              type: "button",
-              disabled: !hasControllers,
-              onClick: onExportJSON,
-              className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-            },
-            React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
-            "Exportar JSON",
-            hasUnsavedExport && hasControllers && React.createElement("span", { className: "font-label text-xs text-amber-400 ml-auto" }, "cambios sin exportar")
-          ),
-          React.createElement(
-            "button",
-            {
-              type: "button",
-              disabled: !hasControllers,
-              onClick: onExportCSV,
-              className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-            },
-            React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
-            "Exportar CSV"
-          ),
-          React.createElement(
-            "button",
-            { type: "button", onClick: onImportJSON, className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors" },
-            React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
-            "Importar JSON"
-          )
-        )
+        React.createElement("p", { className: "text-xs text-slate-500 mt-1.5" }, "Cada pocos minutos se sincroniza sola; también puedes forzarla desde acá.")
       ),
       React.createElement(
         "div",
@@ -4863,7 +4971,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
             { className: "text-xs text-amber-200 mb-2" },
             'Ya existe una falla con la descripción "',
             titulo.trim(),
-            '". ¿Querés guardarla igual? Se guardará como "',
+            '". ¿Quieres guardarla igual? Se guardará como "',
             suggestedTitle,
             '".'
           ),
