@@ -426,6 +426,33 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   @media (min-width: 640px) {
     .sm\:block { display: block; }
   }
+
+  /* Barra de desplazamiento delgada y discreta (Dylan pidió algo similar a
+     la de este chat, sin el fondo oscuro/negro que pone por defecto el
+     navegador al usar colorScheme: dark). Se aplica en toda la app. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.55);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 </style>
 </head>
 <body>
@@ -800,27 +827,6 @@ function formatDaysAgo(days) {
 function formatDaysAhead(days) {
   if (days === 0) return "hoy";
   return "en " + days + (days === 1 ? " día" : " días");
-}
-
-// ---------------------------------------------------------------------------
-// Reordenamiento por drag & drop: solo se reordena el subconjunto visible
-// (según filtros activos) pero el resultado se aplica sobre la lista
-// completa, preservando la posición relativa de los mandos que no están
-// visibles en este momento.
-// ---------------------------------------------------------------------------
-function reorderControllers(fullList, visibleIds, draggedId, targetId) {
-  if (!draggedId || !targetId || draggedId === targetId) return fullList;
-  const dragIdx = visibleIds.indexOf(draggedId);
-  const targetIdx = visibleIds.indexOf(targetId);
-  if (dragIdx === -1 || targetIdx === -1) return fullList;
-  const reorderedVisible = [...visibleIds];
-  reorderedVisible.splice(dragIdx, 1);
-  const newTargetIdx = reorderedVisible.indexOf(targetId);
-  reorderedVisible.splice(newTargetIdx, 0, draggedId);
-  const byId = new Map(fullList.map((c) => [c.id, c]));
-  const visibleSet = new Set(visibleIds);
-  let cursor = 0;
-  return fullList.map((c) => (visibleSet.has(c.id) ? byId.get(reorderedVisible[cursor++]) : c));
 }
 
 // ---------------------------------------------------------------------------
@@ -1412,9 +1418,7 @@ function DualSenseTracker() {
   const [searchQuery, setSearchQuery] = useState("");
   const [colorFilter, setColorFilter] = useState("all");
   const [consoleFilter, setConsoleFilter] = useState("all");
-  const [activeIssuesOnly, setActiveIssuesOnly] = useState(false);
-  const [limitedEditionOnly, setLimitedEditionOnly] = useState(false);
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [showOnly, setShowOnly] = useState("all"); // "all" | "favoritos" | "activas" | "limitada"
   const [sortBy, setSortBy] = useState("default");
   const [controllerModal, setControllerModal] = useState(null); // {mode, data}
   const [issueModal, setIssueModal] = useState(null); // {controllerId, mode, data}
@@ -1435,7 +1439,6 @@ function DualSenseTracker() {
   const [importState, setImportState] = useState(null);
   const [printController, setPrintController] = useState(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [dragOverControllerId, setDragOverControllerId] = useState(null);
   const [accent, setAccent] = useState(() => {
     try {
       return localStorage.getItem(ACCENT_KEY) || "teal";
@@ -1455,7 +1458,6 @@ function DualSenseTracker() {
   const controllersRef = useRef(controllers);
   const visibleControllersRef = useRef([]);
   const dataLoadedRef = useRef(false);
-  const draggedControllerIdRef = useRef(null);
   const autoSyncIntervalRef = useRef(null);
   const lastAutoSyncAtRef = useRef(0);
 
@@ -1571,26 +1573,6 @@ function DualSenseTracker() {
 
   const moveControllerUp = useCallback((controllerId) => moveControllerBy(controllerId, "up"), [moveControllerBy]);
   const moveControllerDown = useCallback((controllerId) => moveControllerBy(controllerId, "down"), [moveControllerBy]);
-
-  // Reordenar mandos arrastrando una tarjeta encima de otra (además de las
-  // flechas, que se mantienen para accesibilidad y para celular).
-  const handleControllerDragStart = useCallback((controllerId) => {
-    draggedControllerIdRef.current = controllerId;
-  }, []);
-  const handleControllerDragOver = useCallback((controllerId) => {
-    setDragOverControllerId((current) => (current === controllerId ? current : controllerId));
-  }, []);
-  const handleControllerDrop = useCallback((targetId) => {
-    const draggedId = draggedControllerIdRef.current;
-    draggedControllerIdRef.current = null;
-    setDragOverControllerId(null);
-    if (!draggedId || draggedId === targetId) return;
-    setControllers((current) => reorderControllers(current, visibleControllersRef.current.map((c) => c.id), draggedId, targetId));
-  }, []);
-  const handleControllerDragEnd = useCallback(() => {
-    draggedControllerIdRef.current = null;
-    setDragOverControllerId(null);
-  }, []);
 
   const handleEditIssue = useCallback((controllerId, issueId) => {
     const controller = controllersRef.current.find((c) => c.id === controllerId);
@@ -1883,19 +1865,19 @@ function DualSenseTracker() {
   // tarjeta que ya no está en esa posición.
   useEffect(() => {
     setFocusedIndex(-1);
-  }, [colorFilter, consoleFilter, activeIssuesOnly, limitedEditionOnly, favoritesOnly, sortBy, debouncedSearchQuery]);
+  }, [colorFilter, consoleFilter, showOnly, sortBy, debouncedSearchQuery]);
 
-  const hasActiveExtraFilter = consoleFilter !== "all" || activeIssuesOnly || limitedEditionOnly || favoritesOnly;
+  const hasActiveExtraFilter = consoleFilter !== "all" || showOnly !== "all";
   const filteredControllers = useMemo(() => {
     let list = colorFilter === "all" ? controllers : controllers.filter((c) => c.color === colorFilter);
     if (consoleFilter !== "all") {
       list = list.filter((c) => (consoleFilter === "__none__" ? !c.consolaActual : c.consolaActual === consoleFilter));
     }
-    if (activeIssuesOnly) list = list.filter((c) => c.issues.some((issue) => normalizeStatus(issue.status) !== "resuelto"));
-    if (limitedEditionOnly) list = list.filter((c) => c.edicionTipo === "limitada");
-    if (favoritesOnly) list = list.filter((c) => c.favorite);
+    if (showOnly === "activas") list = list.filter((c) => c.issues.some((issue) => normalizeStatus(issue.status) !== "resuelto"));
+    if (showOnly === "limitada") list = list.filter((c) => c.edicionTipo === "limitada");
+    if (showOnly === "favoritos") list = list.filter((c) => c.favorite);
     return list;
-  }, [controllers, colorFilter, consoleFilter, activeIssuesOnly, limitedEditionOnly, favoritesOnly]);
+  }, [controllers, colorFilter, consoleFilter, showOnly]);
   const visibleControllers = useMemo(
     () =>
       sortControllers(
@@ -2015,7 +1997,7 @@ function DualSenseTracker() {
                     onClick: () => setSettingsModalOpen(true),
                     title: "Configuración",
                     "aria-label": "Abrir configuración",
-                    className: "shrink-0 p-2.5 rounded-md border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors",
+                    className: "shrink-0 inline-flex items-center justify-center p-2.5 rounded-md border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors",
                   },
                   React.createElement(
                     "span",
@@ -2128,86 +2110,57 @@ function DualSenseTracker() {
                 controllers.length > 0 &&
                   React.createElement(
                     "div",
-                    { className: "flex flex-col gap-2.5 mb-6" },
+                    { className: "flex flex-wrap items-center gap-2 mb-6" },
                     React.createElement(
-                      "div",
-                      { className: "flex flex-wrap items-center gap-2" },
-                      React.createElement(
-                        "select",
-                        {
-                          value: colorFilter,
-                          onChange: (e) => setColorFilter(e.target.value),
-                          "aria-label": "Filtrar por color",
-                          className:
-                            "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
-                        },
-                        React.createElement("option", { value: "all" }, "Todos los colores"),
-                        distinctColors.map((color) => React.createElement("option", { key: color, value: color }, color))
-                      ),
-                      React.createElement(
-                        "select",
-                        {
-                          value: consoleFilter,
-                          onChange: (e) => setConsoleFilter(e.target.value),
-                          "aria-label": "Filtrar por consola actual",
-                          className:
-                            "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
-                        },
-                        CONSOLE_FILTER_OPTIONS.map((opt) => React.createElement("option", { key: opt.value, value: opt.value }, opt.label))
-                      ),
-                      React.createElement(
-                        "select",
-                        {
-                          value: sortBy,
-                          onChange: (e) => setSortBy(e.target.value),
-                          "aria-label": "Ordenar mandos",
-                          className:
-                            "ml-auto px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
-                        },
-                        React.createElement("option", { value: "default" }, "Orden: personalizado"),
-                        React.createElement("option", { value: "nombre" }, "Orden: nombre (A-Z)"),
-                        React.createElement("option", { value: "issues" }, "Orden: cantidad de fallas")
-                      )
+                      "select",
+                      {
+                        value: colorFilter,
+                        onChange: (e) => setColorFilter(e.target.value),
+                        "aria-label": "Filtrar por color",
+                        className:
+                          "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+                      },
+                      React.createElement("option", { value: "all" }, "Todos los colores"),
+                      distinctColors.map((color) => React.createElement("option", { key: color, value: color }, color))
                     ),
                     React.createElement(
-                      "div",
-                      { className: "flex flex-wrap items-center gap-2" },
-                      React.createElement(
-                        "button",
-                        {
-                          type: "button",
-                          onClick: () => setFavoritesOnly((v) => !v),
-                          "aria-pressed": favoritesOnly,
-                          className:
-                            "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
-                            (favoritesOnly ? "bg-accent-900 text-accent-300 border-accent-700" : "border-slate-700 text-slate-400 hover:bg-slate-800"),
-                        },
-                        "★ Solo favoritos"
-                      ),
-                      React.createElement(
-                        "button",
-                        {
-                          type: "button",
-                          onClick: () => setActiveIssuesOnly((v) => !v),
-                          "aria-pressed": activeIssuesOnly,
-                          className:
-                            "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
-                            (activeIssuesOnly ? "bg-accent-900 text-accent-300 border-accent-700" : "border-slate-700 text-slate-400 hover:bg-slate-800"),
-                        },
-                        "Con fallas activas"
-                      ),
-                      React.createElement(
-                        "button",
-                        {
-                          type: "button",
-                          onClick: () => setLimitedEditionOnly((v) => !v),
-                          "aria-pressed": limitedEditionOnly,
-                          className:
-                            "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors " +
-                            (limitedEditionOnly ? "bg-accent-900 text-accent-300 border-accent-700" : "border-slate-700 text-slate-400 hover:bg-slate-800"),
-                        },
-                        "Edición limitada"
-                      )
+                      "select",
+                      {
+                        value: consoleFilter,
+                        onChange: (e) => setConsoleFilter(e.target.value),
+                        "aria-label": "Filtrar por consola actual",
+                        className:
+                          "px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+                      },
+                      CONSOLE_FILTER_OPTIONS.map((opt) => React.createElement("option", { key: opt.value, value: opt.value }, opt.label))
+                    ),
+                    React.createElement(
+                      "select",
+                      {
+                        value: showOnly,
+                        onChange: (e) => setShowOnly(e.target.value),
+                        "aria-label": "Mostrar solo",
+                        className:
+                          "px-2.5 py-1.5 rounded-md border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500 transition-colors " +
+                          (showOnly !== "all" ? "border-accent-700 bg-accent-900 text-accent-300" : "border-slate-700 bg-slate-800 text-slate-300"),
+                      },
+                      React.createElement("option", { value: "all" }, "Mostrar solo…"),
+                      React.createElement("option", { value: "favoritos" }, "★ Solo favoritos"),
+                      React.createElement("option", { value: "activas" }, "Con fallas activas"),
+                      React.createElement("option", { value: "limitada" }, "Edición limitada")
+                    ),
+                    React.createElement(
+                      "select",
+                      {
+                        value: sortBy,
+                        onChange: (e) => setSortBy(e.target.value),
+                        "aria-label": "Ordenar mandos",
+                        className:
+                          "ml-auto px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
+                      },
+                      React.createElement("option", { value: "default" }, "Orden: personalizado"),
+                      React.createElement("option", { value: "nombre" }, "Orden: nombre (A-Z)"),
+                      React.createElement("option", { value: "issues" }, "Orden: cantidad de fallas")
                     )
                   ),
                 controllers.length === 0
@@ -2243,11 +2196,6 @@ function DualSenseTracker() {
                               onMoveUp: moveControllerUp,
                               onMoveDown: moveControllerDown,
                               isFocused: index === focusedIndex,
-                              onDragStartCard: handleControllerDragStart,
-                              onDragOverCard: handleControllerDragOver,
-                              onDropCard: handleControllerDrop,
-                              onDragEndCard: handleControllerDragEnd,
-                              isDragOver: dragOverControllerId === controller.id,
                             })
                           )
                         ),
@@ -2616,14 +2564,15 @@ function AllIssuesView({ controllers, onOpenIssue }) {
     null,
     React.createElement(
       "div",
-      { className: "flex flex-col gap-3 mb-4" },
-      React.createElement(SearchInput, { value: query, onChange: setQuery, placeholder: "Buscar por descripción, tipo o etiqueta...", ariaLabel: "Buscar en todas las fallas" }),
+      { className: "mb-4" },
+      React.createElement(SearchInput, { value: query, onChange: setQuery, placeholder: "Buscar por descripción, tipo o etiqueta...", ariaLabel: "Buscar en todas las fallas" })
+    ),
+    React.createElement(
+      "div",
+      { className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6" },
       React.createElement(
         "div",
-        { className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" },
-        React.createElement(
-          "div",
-          { className: "flex flex-wrap gap-1.5" },
+        { className: "flex flex-wrap gap-1.5" },
           STATUS_FILTERS.map((filter) => {
             const count = filter.value === "all" ? filtered.length : breakdown[filter.value] || 0;
             return React.createElement(
@@ -2671,7 +2620,6 @@ function AllIssuesView({ controllers, onOpenIssue }) {
           React.createElement("option", { value: "recent" }, "Orden: actividad reciente"),
           React.createElement("option", { value: "urgencia" }, "Orden: urgencia primero")
         )
-      )
     ),
     all.length === 0
       ? React.createElement("div", { className: "text-center py-16 text-slate-500 text-sm" }, "Todavía no registraste fallas en ningún mando.")
@@ -2823,9 +2771,22 @@ function StatsView({ controllers }) {
       .filter((k) => k !== "Sin especificar")
       .sort((a, b) => byEdition[b] - byEdition[a]);
     const typeKeys = [...new Set([...ISSUE_TYPES, ...Object.keys(byType)])].filter((t) => byType[t]);
-    const mostIssues = [...controllers].sort((a, b) => b.issues.length - a.issues.length)[0];
+    const sortedByIssueCount = [...controllers].filter((c) => c.issues.length > 0).sort((a, b) => b.issues.length - a.issues.length);
+    // Si hay empate en la cantidad máxima de fallas entre varios mandos, no
+    // hay un "más problemático" real, así que no se muestra ninguno en vez
+    // de elegir uno al azar por el orden de la lista.
+    const mostIssues =
+      sortedByIssueCount.length > 0 && (sortedByIssueCount.length === 1 || sortedByIssueCount[0].issues.length > sortedByIssueCount[1].issues.length)
+        ? sortedByIssueCount[0]
+        : null;
     const mostIssuesCost = mostIssues ? mostIssues.issues.reduce((sum, i) => sum + (i.costo || 0), 0) : 0;
-    const mostFrequentTypeKey = typeKeys.length > 0 ? [...typeKeys].sort((a, b) => (byType[b] || 0) - (byType[a] || 0))[0] : null;
+    const sortedTypeKeys = [...typeKeys].sort((a, b) => (byType[b] || 0) - (byType[a] || 0));
+    // Mismo criterio que arriba: con un empate en el tipo de falla más
+    // frecuente, no se destaca ninguno como si fuera único.
+    const mostFrequentTypeKey =
+      sortedTypeKeys.length > 0 && (sortedTypeKeys.length === 1 || (byType[sortedTypeKeys[0]] || 0) > (byType[sortedTypeKeys[1]] || 0))
+        ? sortedTypeKeys[0]
+        : null;
     const warrantyAlerts = controllers
       .filter((c) => warrantyAlertLevel(c.finGarantia))
       .map((c) => ({ controller: c, level: warrantyAlertLevel(c.finGarantia), days: daysUntil(c.finGarantia) }))
@@ -3150,11 +3111,6 @@ const ControllerCard = React.memo(function ControllerCard({
   onMoveUp,
   onMoveDown,
   isFocused,
-  onDragStartCard,
-  onDropCard,
-  onDragOverCard,
-  onDragEndCard,
-  isDragOver,
 }) {
   const controllerId = controller.id;
   const issueCount = controller.issues.length;
@@ -3182,31 +3138,6 @@ const ControllerCard = React.memo(function ControllerCard({
   const handleToggleFavorite = useCallback(() => onToggleFavorite(controllerId), [controllerId, onToggleFavorite]);
   const handleMoveUp = useCallback(() => onMoveUp(controllerId), [controllerId, onMoveUp]);
   const handleMoveDown = useCallback(() => onMoveDown(controllerId), [controllerId, onMoveDown]);
-  const handleDragStart = useCallback(
-    (e) => {
-      e.dataTransfer.effectAllowed = "move";
-      try {
-        e.dataTransfer.setData("text/plain", controllerId);
-      } catch (err) {}
-      onDragStartCard(controllerId);
-    },
-    [controllerId, onDragStartCard]
-  );
-  const handleDragOver = useCallback(
-    (e) => {
-      if (!reorderable) return;
-      e.preventDefault();
-      onDragOverCard(controllerId);
-    },
-    [controllerId, onDragOverCard, reorderable]
-  );
-  const handleDrop = useCallback(
-    (e) => {
-      e.preventDefault();
-      onDropCard(controllerId);
-    },
-    [controllerId, onDropCard]
-  );
 
   return React.createElement(
     "div",
@@ -3221,19 +3152,10 @@ const ControllerCard = React.memo(function ControllerCard({
       },
       role: "button",
       tabIndex: 0,
-      draggable: reorderable,
-      onDragStart: reorderable ? handleDragStart : undefined,
-      onDragOver: reorderable ? handleDragOver : undefined,
-      onDrop: reorderable ? handleDrop : undefined,
-      onDragEnd: reorderable ? onDragEndCard : undefined,
       "aria-label": `Ver mando ${controller.nombre || "sin nombre"}`,
       className:
         "bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col gap-3 hover:border-slate-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-500",
-      style: isFocused
-        ? { borderColor: "var(--accent-500)", boxShadow: "0 0 0 2px var(--accent-500)" }
-        : isDragOver
-        ? { borderColor: "var(--accent-400)", boxShadow: "0 0 0 2px var(--accent-400)" }
-        : undefined,
+      style: isFocused ? { borderColor: "var(--accent-500)", boxShadow: "0 0 0 2px var(--accent-500)" } : undefined,
     },
     React.createElement(
       "div",
@@ -3347,11 +3269,6 @@ const ControllerCard = React.memo(function ControllerCard({
         ? React.createElement(
             "div",
             { className: "flex items-center gap-0.5", onClick: (e) => e.stopPropagation() },
-            React.createElement(Icon, {
-              name: "gripVertical",
-              className: "w-4 h-4 text-slate-600 cursor-grab hidden sm:block",
-              title: "Arrastrar para reordenar",
-            }),
             React.createElement(
               "button",
               {
