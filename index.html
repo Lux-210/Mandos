@@ -386,8 +386,8 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   /* Utilidades de Tailwind que el build purgado no incluía. Sin ellas, varias
      partes de la app no se veían bien: el indicador de "cambios sin
      exportar", el resaltado del color de acento elegido en Configuración,
-     los separadores y la respiración entre secciones, el cursor de
-     arrastrar en las tarjetas, el botón "ojo" de las tarjetas, el punto de
+     los separadores y la respiración entre secciones, el botón "ojo" de
+     las tarjetas, el punto de
      aviso sobre el ícono de Configuración, y el desplazamiento del modal de
      edición cuando el contenido no entra en la pantalla. */
   .-m-1 { margin: -.25rem; }
@@ -395,7 +395,6 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   .-top-0\.5 { top: -.125rem; }
   .bg-slate-600 { --tw-bg-opacity: 1; background-color: rgb(71 85 105 / var(--tw-bg-opacity, 1)); }
   .border-t { border-top-width: 1px; }
-  .cursor-grab { cursor: grab; }
   .disabled\:opacity-40:disabled { opacity: .4; }
   .gap-5 { gap: 1.25rem; }
   .gap-x-3 { column-gap: .75rem; }
@@ -752,6 +751,13 @@ const GH_TOKEN_KEY = "mis-dualsense-gh-token";
 const GH_GIST_ID_KEY = "mis-dualsense-gh-gist-id";
 const GH_GIST_DESCRIPTION = "Mis DualSense — datos (no editar a mano)";
 const GH_GIST_FILENAME = "mis-dualsense-data.json";
+// Segundo archivo del mismo gist: guarda las marcas de eliminación (ver
+// mergeForSync). Es un archivo aparte para que las versiones anteriores de
+// la app, que solo leen el primero, sigan funcionando sin errores.
+const GH_GIST_TOMBSTONES_FILENAME = "mis-dualsense-deleted.json";
+// Cuánto tiempo se recuerda que algo se eliminó (para propagarlo a otros
+// dispositivos que estuvieron un tiempo sin conexión).
+const TOMBSTONE_MAX_AGE_MS = 180 * 86400000;
 const ACCENT_KEY = "mis-dualsense-accent";
 
 // Paleta de colores de acento disponibles. El valor "hex" solo se usa para
@@ -878,6 +884,7 @@ async function decompressContent(content) {
 // ---------------------------------------------------------------------------
 async function ghRequest(token, path, options = {}) {
   const res = await fetch(`https://api.github.com${path}`, {
+    cache: "no-store",
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -905,37 +912,59 @@ async function findExistingGist(token) {
   return found ? found.id : null;
 }
 
-async function createGist(token, data) {
-  const content = await compressJSON(JSON.stringify(data));
+async function createGist(token, controllers, tombstones) {
+  const content = await compressJSON(JSON.stringify(controllers));
   const created = await ghRequest(token, "/gists", {
     method: "POST",
     body: JSON.stringify({
       description: GH_GIST_DESCRIPTION,
       public: false,
-      files: { [GH_GIST_FILENAME]: { content } },
+      files: {
+        [GH_GIST_FILENAME]: { content },
+        [GH_GIST_TOMBSTONES_FILENAME]: { content: JSON.stringify(tombstones || emptyTombstones()) },
+      },
     }),
   });
   return created.id;
 }
 
-async function pullGist(token, gistId) {
-  const gist = await ghRequest(token, `/gists/${gistId}`);
-  const file = gist.files && gist.files[GH_GIST_FILENAME];
-  if (!file) throw new Error("El gist no contiene el archivo esperado.");
+async function readGistFile(file) {
   let content = file.content;
   if (file.truncated && file.raw_url) {
     const res = await fetch(file.raw_url);
     content = await res.text();
   }
-  const json = await decompressContent(content);
-  return normalizeImportedControllers(JSON.parse(json));
+  return content;
 }
 
-async function pushGist(token, gistId, data) {
-  const content = await compressJSON(JSON.stringify(data));
+// Devuelve { controllers, tombstones }. Las marcas de eliminación viajan en un
+// segundo archivo del gist; si todavía no existe se asume que no hay ninguna.
+async function pullGist(token, gistId) {
+  const gist = await ghRequest(token, `/gists/${gistId}`);
+  const file = gist.files && gist.files[GH_GIST_FILENAME];
+  if (!file) throw new Error("El gist no contiene el archivo esperado.");
+  const json = await decompressContent(await readGistFile(file));
+  const controllers = normalizeImportedControllers(JSON.parse(json));
+  let tombstones = emptyTombstones();
+  const tombstonesFile = gist.files[GH_GIST_TOMBSTONES_FILENAME];
+  if (tombstonesFile) {
+    try {
+      tombstones = normalizeTombstones(JSON.parse(await readGistFile(tombstonesFile)));
+    } catch (e) {}
+  }
+  return { controllers, tombstones };
+}
+
+async function pushGist(token, gistId, controllers, tombstones) {
+  const content = await compressJSON(JSON.stringify(controllers));
   await ghRequest(token, `/gists/${gistId}`, {
     method: "PATCH",
-    body: JSON.stringify({ files: { [GH_GIST_FILENAME]: { content } } }),
+    body: JSON.stringify({
+      files: {
+        [GH_GIST_FILENAME]: { content },
+        [GH_GIST_TOMBSTONES_FILENAME]: { content: JSON.stringify(tombstones || emptyTombstones()) },
+      },
+    }),
   });
 }
 
@@ -1097,14 +1126,19 @@ function downloadCSV(rows, filename) {
   URL.revokeObjectURL(url);
 }
 
-// Exporta un CSV con una fila por falla (con los datos del mando repetidos),
-// que es el nivel de detalle más útil para abrir en una planilla de cálculo.
-function exportControllersCSV(controllers) {
+// Arma las filas del CSV (una por falla, con los datos del mando repetidos, que
+// es el nivel de detalle más útil para abrir en una planilla de cálculo). Las
+// primeras 18 columnas son las de siempre; al final se agregaron las que
+// hacen falta para poder volver a importar el archivo sin perder datos (y sin
+// duplicar mandos si además se usa la sincronización, gracias a los ID).
+function buildControllersCSVRows(controllers) {
   const header = [
     "Mando", "Color", "Estado", "Consola de origen", "Consola actual", "Edición",
     "Precio de compra", "Fecha de compra", "Fin de garantía", "Número de serie",
     "Falla", "Tipo de falla", "Estado de la falla", "Urgente", "Costo de la falla",
     "Detectada el", "Última actividad", "Notas de la falla",
+    "Favorito", "Notas del mando", "Prestado a", "Prestado desde", "Color (hex)",
+    "Etiquetas de la falla", "Recordatorio de la falla", "ID del mando", "ID de la falla",
   ];
   const rows = [header];
   controllers.forEach((c) => {
@@ -1120,8 +1154,15 @@ function exportControllersCSV(controllers) {
       c.finGarantia ? formatDate(c.finGarantia) : "",
       c.numeroSerie || "",
     ];
+    const controllerExtras = [
+      c.favorite ? "Sí" : "No",
+      c.notes || "",
+      c.prestadoA || "",
+      c.prestadoDesde ? formatDate(c.prestadoDesde) : "",
+      c.colorHex || "",
+    ];
     if (c.issues.length === 0) {
-      rows.push([...base, "", "", "", "", "", "", "", ""]);
+      rows.push([...base, "", "", "", "", "", "", "", "", ...controllerExtras, "", "", c.id, ""]);
     } else {
       c.issues.forEach((issue) => {
         rows.push([
@@ -1134,11 +1175,389 @@ function exportControllersCSV(controllers) {
           issue.createdAt ? formatDate(issue.createdAt) : "",
           issue.updatedAt ? formatDate(issue.updatedAt) : "",
           issue.notes || "",
+          ...controllerExtras,
+          (issue.tags || []).join("; "),
+          issue.reminder ? formatDate(issue.reminder) : "",
+          c.id,
+          issue.id,
         ]);
       });
     }
   });
-  downloadCSV(rows, `mis-dualsense-${new Date().toISOString().slice(0, 10)}.csv`);
+  return rows;
+}
+
+function exportControllersCSV(controllers) {
+  downloadCSV(buildControllersCSVRows(controllers), `mis-dualsense-${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+// ---------------------------------------------------------------------------
+// Importación de CSV
+// ---------------------------------------------------------------------------
+
+// Elige el separador (coma, punto y coma o tabulador) mirando la primera
+// línea: las planillas en español suelen guardar los CSV con punto y coma.
+function detectCSVDelimiter(text) {
+  const counts = { ",": 0, ";": 0, "\t": 0 };
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') inQuotes = !inQuotes;
+    else if (!inQuotes) {
+      if (ch === "\n" || ch === "\r") break;
+      if (ch in counts) counts[ch] += 1;
+    }
+  }
+  const best = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  return counts[best] > 0 ? best : ",";
+}
+
+// Lector de CSV (RFC 4180): campos entre comillas, comillas dobles escapadas
+// y saltos de línea dentro de un campo.
+function parseCSVRows(text, delimiter) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else inQuotes = false;
+      } else cell += ch;
+    } else if (ch === '"' && cell === "") {
+      inQuotes = true;
+    } else if (ch === delimiter) {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(cell);
+      cell = "";
+      rows.push(row);
+      row = [];
+    } else {
+      cell += ch;
+    }
+  }
+  if (cell !== "" || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+// Acepta "59990", "59.990", "59,990", "59.990,50", "$ 59.990", "12,5"...
+function parseCSVNumber(text) {
+  let s = String(text).trim().replace(/[^\d.,-]/g, "");
+  if (!/\d/.test(s) || s.indexOf("-") !== -1) return null;
+  const lastDot = s.lastIndexOf(".");
+  const lastComma = s.lastIndexOf(",");
+  if (lastDot !== -1 && lastComma !== -1) {
+    const decimal = lastDot > lastComma ? "." : ",";
+    const thousands = decimal === "." ? "," : ".";
+    s = s.split(thousands).join("").replace(decimal, ".");
+  } else if (lastComma !== -1) {
+    s = /^[1-9]\d{0,2}(,\d{3})+$/.test(s) ? s.replace(/,/g, "") : s.replace(",", ".");
+  } else if (lastDot !== -1 && /^[1-9]\d{0,2}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  const n = Number(s);
+  return isNaN(n) ? null : n;
+}
+
+// Fechas como las escribe la app al exportar (día/mes/año) o en formato ISO.
+function parseCSVDate(text) {
+  const s = String(text).trim();
+  if (!s) return null;
+  let y;
+  let mo;
+  let d;
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T].*)?$/);
+  if (m) {
+    y = Number(m[1]);
+    mo = Number(m[2]);
+    d = Number(m[3]);
+  } else {
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})(?:[ T,].*)?$/);
+    if (!m) return null;
+    d = Number(m[1]);
+    mo = Number(m[2]);
+    y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  }
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return date.getTime();
+}
+
+// Nombre (sin tildes ni mayúsculas) de cada columna que entiende el importador.
+const CSV_FIELDS = {
+  nombre: "mando",
+  color: "color",
+  estado: "estado",
+  consolaOrigen: "consola de origen",
+  consolaActual: "consola actual",
+  edicion: "edicion",
+  precio: "precio de compra",
+  fechaCompra: "fecha de compra",
+  finGarantia: "fin de garantia",
+  numeroSerie: "numero de serie",
+  falla: "falla",
+  tipoFalla: "tipo de falla",
+  estadoFalla: "estado de la falla",
+  urgente: "urgente",
+  costoFalla: "costo de la falla",
+  detectadaEl: "detectada el",
+  ultimaActividad: "ultima actividad",
+  notasFalla: "notas de la falla",
+  favorito: "favorito",
+  notasMando: "notas del mando",
+  prestadoA: "prestado a",
+  prestadoDesde: "prestado desde",
+  colorHex: "color (hex)",
+  etiquetas: "etiquetas de la falla",
+  recordatorio: "recordatorio de la falla",
+  idMando: "id del mando",
+  idFalla: "id de la falla",
+};
+
+function csvHeaderKey(text) {
+  return normalizeText(text).replace(/\s+/g, " ").trim();
+}
+
+function csvIsTrue(value) {
+  return /^(si|s|yes|y|true|verdadero|1|x)$/.test(normalizeText(value).trim());
+}
+
+// Busca "value" entre las opciones ignorando mayúsculas y tildes.
+function csvCanonicalOption(value, options) {
+  const target = normalizeText(value).trim();
+  const found = options.find((option) => option && normalizeText(option) === target);
+  return found || null;
+}
+
+// Busca la clave de un objeto de estados por su etiqueta visible o por la clave.
+function csvStatusKey(value, meta) {
+  const target = normalizeText(value).trim().replace(/[\s_]+/g, " ");
+  const found = Object.keys(meta).find((key) => normalizeText(meta[key].label) === target || key.replace(/_/g, " ") === target);
+  return found || null;
+}
+
+// Convierte el texto de un CSV en mandos listos para pasar por
+// mergeImportedControllers. Reconoce los archivos que exporta la app y
+// también CSV armados a mano: solo hace falta la columna "Mando". El orden de
+// las columnas no importa. Si el CSV no trae ID, cada mando se reconoce contra
+// los que ya existen por número de serie o por nombre + color, y cada falla
+// por su descripción, para no duplicar nada al volver a importar.
+function buildCSVImport(text, existingControllers) {
+  const clean = String(text).replace(/^\uFEFF/, "");
+  const rows = parseCSVRows(clean, detectCSVDelimiter(clean)).filter((row) => row.some((cell) => cell.trim() !== ""));
+  if (rows.length === 0) throw new Error("El archivo está vacío.");
+  const headerKeys = rows[0].map(csvHeaderKey);
+  const col = {};
+  Object.keys(CSV_FIELDS).forEach((field) => {
+    col[field] = headerKeys.indexOf(CSV_FIELDS[field]);
+  });
+  if (col.nombre === -1) throw new Error("No se encontró la columna «Mando» en la primera fila del CSV.");
+
+  const warnings = {};
+  const warn = (label) => {
+    warnings[label] = (warnings[label] || 0) + 1;
+  };
+  const get = (row, field) => (col[field] >= 0 && col[field] < row.length ? String(row[col[field]]).trim() : "");
+
+  // Se agrupan las filas por mando. Una fila sin nombre ni ID se considera
+  // continuación del mando anterior (si trae una falla).
+  const groups = [];
+  const groupsByKey = new Map();
+  let lastGroup = null;
+  rows.slice(1).forEach((row) => {
+    const nombre = get(row, "nombre");
+    const idMando = get(row, "idMando");
+    let group;
+    if (!nombre && !idMando) {
+      if (!(lastGroup && get(row, "falla"))) {
+        warn("Filas sin nombre de mando (se omitieron)");
+        return;
+      }
+      group = lastGroup;
+    } else {
+      const key = idMando
+        ? "id:" + idMando
+        : "n:" + [nombre, get(row, "color"), get(row, "numeroSerie")].map((v) => normalizeText(v).trim()).join("|");
+      group = groupsByKey.get(key);
+      if (!group) {
+        group = { idMando, rows: [] };
+        groups.push(group);
+        groupsByKey.set(key, group);
+      }
+    }
+    group.rows.push(row);
+    lastGroup = group;
+  });
+
+  // El primer valor no vacío de la columna entre las filas del mando.
+  const pick = (group, field) => {
+    for (let i = 0; i < group.rows.length; i++) {
+      const value = get(group.rows[i], field);
+      if (value) return value;
+    }
+    return "";
+  };
+  const dateOf = (raw) => {
+    if (!raw) return null;
+    const ts = parseCSVDate(raw);
+    if (ts === null) warn("Fechas no reconocidas (se dejaron vacías)");
+    return ts;
+  };
+  const numberOf = (raw) => {
+    if (!raw) return null;
+    const n = parseCSVNumber(raw);
+    if (n === null) warn("Importes no reconocidos (se dejaron vacíos)");
+    return n;
+  };
+
+  const now = Date.now();
+  const usedExistingIds = new Set();
+  const built = groups.map((group) => {
+    const nombre = pick(group, "nombre");
+    const color = pick(group, "color");
+    const numeroSerie = pick(group, "numeroSerie");
+    const sameText = (a, b) => normalizeText(a).trim() === normalizeText(b).trim();
+
+    let id = group.idMando;
+    let existing = null;
+    if (id) {
+      existing = existingControllers.find((c) => c.id === id) || null;
+    } else {
+      existing =
+        (numeroSerie && existingControllers.find((c) => !usedExistingIds.has(c.id) && c.numeroSerie && sameText(c.numeroSerie, numeroSerie))) ||
+        existingControllers.find((c) => !usedExistingIds.has(c.id) && sameText(c.nombre, nombre) && sameText(c.color, color)) ||
+        null;
+      id = existing ? existing.id : uid();
+    }
+    if (existing) usedExistingIds.add(existing.id);
+
+    let estado = "activo";
+    const estadoRaw = pick(group, "estado");
+    if (estadoRaw) {
+      const key = csvStatusKey(estadoRaw, CONTROLLER_STATUS_META);
+      if (key) estado = key;
+      else warn("Estados de mando no reconocidos (se usó «Activo»)");
+    }
+    const consoleOf = (field, options) => {
+      const raw = pick(group, field);
+      if (!raw) return "";
+      const option = csvCanonicalOption(normalizeText(raw).trim() === "comprado por separado" ? "Comprado" : raw, options);
+      if (option === null) {
+        warn("Consolas no reconocidas (se dejaron sin especificar)");
+        return "";
+      }
+      return option;
+    };
+    let edicionTipo = "";
+    let edicionNombre = "";
+    const edicionRaw = pick(group, "edicion");
+    if (edicionRaw) {
+      const normalized = normalizeText(edicionRaw).trim();
+      if (normalized.indexOf("edicion limitada") === 0) {
+        edicionTipo = "limitada";
+        const colon = edicionRaw.indexOf(":");
+        edicionNombre = colon >= 0 ? edicionRaw.slice(colon + 1).trim() : "";
+      } else if (normalized === "normal") edicionTipo = "normal";
+      else if (normalized !== "sin especificar") warn("Ediciones no reconocidas (se dejaron sin especificar)");
+    }
+
+    const usedIssueIds = new Set();
+    const issues = [];
+    group.rows.forEach((row) => {
+      const titulo = get(row, "falla");
+      if (!titulo) return;
+      let issueId = get(row, "idFalla");
+      if (!issueId && existing) {
+        const match = existing.issues.find((issue) => !usedIssueIds.has(issue.id) && sameText(issue.titulo, titulo));
+        if (match) issueId = match.id;
+      }
+      if (!issueId || usedIssueIds.has(issueId)) issueId = uid();
+      usedIssueIds.add(issueId);
+
+      let tipo = ISSUE_TYPES[0];
+      let notes = get(row, "notasFalla");
+      const tipoRaw = get(row, "tipoFalla");
+      if (tipoRaw) {
+        const known = csvCanonicalOption(tipoRaw, ISSUE_TYPES);
+        if (known) tipo = known;
+        else {
+          tipo = "Otro";
+          notes = (notes ? notes + "\n" : "") + "Tipo indicado en el CSV: " + tipoRaw;
+          warn("Tipos de falla no reconocidos (se usó «Otro»)");
+        }
+      }
+      let status = "detectado";
+      const statusRaw = get(row, "estadoFalla");
+      if (statusRaw) {
+        const key = csvStatusKey(statusRaw, STATUS_META);
+        if (key) status = key;
+        else warn("Estados de falla no reconocidos (se usó «Detectado»)");
+      }
+      const createdAt = dateOf(get(row, "detectadaEl")) || now;
+      const updatedAt = Math.max(createdAt, dateOf(get(row, "ultimaActividad")) || createdAt);
+      issues.push({
+        id: issueId,
+        titulo,
+        tipo,
+        status,
+        notes,
+        costo: numberOf(get(row, "costoFalla")),
+        urgente: csvIsTrue(get(row, "urgente")),
+        createdAt,
+        updatedAt,
+        tags: get(row, "etiquetas").split(/[;,]/).map((tag) => tag.trim()).filter(Boolean),
+        reminder: dateOf(get(row, "recordatorio")),
+      });
+    });
+
+    const hex = pick(group, "colorHex");
+    return {
+      id,
+      nombre,
+      color,
+      colorHex: /^#[0-9a-f]{6}$/i.test(hex) ? hex : COLOR_HEX_MAP[color] || DEFAULT_COLOR_HEX,
+      consolaOrigen: consoleOf("consolaOrigen", CONSOLE_ORIGEN_OPTIONS),
+      consolaActual: consoleOf("consolaActual", PS5_MODELS),
+      edicionTipo,
+      edicionNombre,
+      precioCompra: numberOf(pick(group, "precio")),
+      fechaCompra: dateOf(pick(group, "fechaCompra")),
+      finGarantia: dateOf(pick(group, "finGarantia")),
+      numeroSerie,
+      notes: pick(group, "notasMando"),
+      favorite: csvIsTrue(pick(group, "favorito")),
+      estado,
+      prestadoA: pick(group, "prestadoA"),
+      prestadoDesde: dateOf(pick(group, "prestadoDesde")),
+      updatedAt: now,
+      issues,
+    };
+  });
+
+  return {
+    controllers: normalizeImportedControllers(built),
+    warnings: Object.keys(warnings).map((label) => label + ": " + warnings[label]),
+  };
+}
+
+// Los CSV que guarda Excel sin BOM suelen venir en Windows-1252 y no en
+// UTF-8: si no se puede leer como UTF-8 se prueba con esa codificación.
+function decodeCSVBuffer(buffer) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch (e) {
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
 }
 
 function uid() {
@@ -1163,6 +1582,7 @@ function emptyController() {
     numeroSerie: "",
     notes: "",
     favorite: false,
+    updatedAt: 0,
     estado: "activo",
     prestadoA: "",
     prestadoDesde: null,
@@ -1228,6 +1648,10 @@ function normalizeImportedControllers(data) {
       numeroSerie: raw && typeof raw.numeroSerie === "string" ? raw.numeroSerie : "",
       notes: raw && typeof raw.notes === "string" ? raw.notes : "",
       favorite: !!(raw && raw.favorite),
+      // Última modificación de los datos del mando (sirve para decidir qué
+      // versión gana al sincronizar). Los mandos guardados con versiones
+      // anteriores no la tienen: valen 0 hasta que se editen.
+      updatedAt: raw && typeof raw.updatedAt === "number" && !isNaN(raw.updatedAt) ? raw.updatedAt : 0,
       estado: normalizeControllerStatus(raw && raw.estado),
       prestadoA: raw && typeof raw.prestadoA === "string" ? raw.prestadoA : "",
       prestadoDesde: raw && typeof raw.prestadoDesde === "number" ? raw.prestadoDesde : null,
@@ -1259,6 +1683,171 @@ function normalizeImportedControllers(data) {
       }),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Sincronización entre dispositivos: fusión por fecha de modificación y
+// marcas de eliminación.
+//
+// Cada mando y cada falla guardan "updatedAt". Al sincronizar, para cada
+// registro que existe en ambos lados gana el que se modificó más tarde (si
+// empatan, se conserva el local). Para que una eliminación también viaje entre
+// dispositivos, al borrar se deja una "marca de eliminación" (id → fecha): si
+// esa fecha es posterior a la última modificación del registro, el registro se
+// elimina en todos lados. Si alguien lo editó después de que se borró, gana la
+// edición y el registro vuelve a existir. Las marcas se descartan a los 180
+// días para que no crezcan sin límite.
+// ---------------------------------------------------------------------------
+function emptyTombstones() {
+  return { controllers: {}, issues: {} };
+}
+
+function normalizeTombstones(raw) {
+  const out = emptyTombstones();
+  ["controllers", "issues"].forEach((kind) => {
+    const source = raw && raw[kind] && typeof raw[kind] === "object" && !Array.isArray(raw[kind]) ? raw[kind] : {};
+    Object.keys(source).forEach((id) => {
+      if (typeof source[id] === "number" && !isNaN(source[id])) out[kind][id] = source[id];
+    });
+  });
+  return out;
+}
+
+function pruneTombstones(tombstones, now) {
+  const out = emptyTombstones();
+  ["controllers", "issues"].forEach((kind) => {
+    Object.keys(tombstones[kind]).forEach((id) => {
+      if (now - tombstones[kind][id] < TOMBSTONE_MAX_AGE_MS) out[kind][id] = tombstones[kind][id];
+    });
+  });
+  return out;
+}
+
+// Última vez que se tocó un mando o cualquiera de sus fallas.
+function controllerLastActivity(controller) {
+  let last = controller.updatedAt || 0;
+  controller.issues.forEach((issue) => {
+    if ((issue.updatedAt || 0) > last) last = issue.updatedAt || 0;
+  });
+  return last;
+}
+
+// Combina la versión local y la remota de un mismo mando: los datos propios
+// del mando los decide la fecha de modificación del mando, y cada falla se
+// resuelve por separado con la suya.
+function mergeControllerForSync(local, remote) {
+  const base = (remote.updatedAt || 0) > (local.updatedAt || 0) ? remote : local;
+  const remoteIssues = new Map(remote.issues.map((issue) => [issue.id, issue]));
+  const localIds = new Set(local.issues.map((issue) => issue.id));
+  const issues = local.issues.map((issue) => {
+    const other = remoteIssues.get(issue.id);
+    return other && (other.updatedAt || 0) > (issue.updatedAt || 0) ? other : issue;
+  });
+  remote.issues.forEach((issue) => {
+    if (!localIds.has(issue.id)) issues.push(issue);
+  });
+  return { ...base, issues };
+}
+
+// Devuelve { controllers, tombstones } con el resultado de fusionar los datos
+// locales con los remotos. Es una función pura: no toca nada fuera de sus
+// argumentos.
+function mergeForSync(local, localTombstones, remote, remoteTombstones, now) {
+  const tombstones = emptyTombstones();
+  [localTombstones, remoteTombstones].forEach((source) => {
+    ["controllers", "issues"].forEach((kind) => {
+      Object.keys(source[kind]).forEach((id) => {
+        tombstones[kind][id] = Math.max(tombstones[kind][id] || 0, source[kind][id]);
+      });
+    });
+  });
+
+  const remoteById = new Map(remote.map((controller) => [controller.id, controller]));
+  const localIds = new Set(local.map((controller) => controller.id));
+  const combined = local.map((controller) => {
+    const other = remoteById.get(controller.id);
+    return other ? mergeControllerForSync(controller, other) : controller;
+  });
+  remote.forEach((controller) => {
+    if (!localIds.has(controller.id)) combined.push(controller);
+  });
+
+  const controllers = [];
+  combined.forEach((controller) => {
+    const issues = controller.issues.filter((issue) => !(tombstones.issues[issue.id] > (issue.updatedAt || 0)));
+    const kept = issues.length === controller.issues.length ? controller : { ...controller, issues };
+    if (tombstones.controllers[kept.id] > controllerLastActivity(kept)) return;
+    controllers.push(kept);
+  });
+
+  // Si un registro sigue vivo (porque se modificó después de la marca), la
+  // marca ya no tiene sentido.
+  controllers.forEach((controller) => {
+    delete tombstones.controllers[controller.id];
+    controller.issues.forEach((issue) => {
+      delete tombstones.issues[issue.id];
+    });
+  });
+
+  return { controllers, tombstones: pruneTombstones(tombstones, now) };
+}
+
+// Cuando se agregan datos "desde afuera" (importar un archivo), lo que se
+// importa tiene que ganarle a cualquier marca de eliminación vieja del mismo
+// registro; si no, volvería a desaparecer en la siguiente sincronización.
+function reviveFromTombstones(controllers, tombstones) {
+  const remaining = { controllers: { ...tombstones.controllers }, issues: { ...tombstones.issues } };
+  const revived = controllers.map((controller) => {
+    let changed = false;
+    const issues = controller.issues.map((issue) => {
+      const mark = remaining.issues[issue.id];
+      if (mark === undefined) return issue;
+      delete remaining.issues[issue.id];
+      if ((issue.updatedAt || 0) > mark) return issue;
+      changed = true;
+      return { ...issue, updatedAt: mark + 1 };
+    });
+    let updatedAt = controller.updatedAt || 0;
+    const controllerMark = remaining.controllers[controller.id];
+    if (controllerMark !== undefined) {
+      delete remaining.controllers[controller.id];
+      const activity = Math.max(updatedAt, ...issues.map((issue) => issue.updatedAt || 0));
+      if (activity <= controllerMark) {
+        updatedAt = controllerMark + 1;
+        changed = true;
+      }
+    }
+    return changed ? { ...controller, updatedAt, issues } : controller;
+  });
+  return { controllers: revived, tombstones: remaining };
+}
+
+// JSON con las claves ordenadas: sirve para comparar dos estructuras sin que
+// el orden en que se crearon las propiedades cambie el resultado.
+function stableStringify(value) {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .filter((key) => value[key] !== undefined)
+        .map((key) => JSON.stringify(key) + ":" + stableStringify(value[key]))
+        .join(",") +
+      "}"
+    );
+  }
+  return JSON.stringify(value);
+}
+
+// Huella del contenido (sin importar el orden de mandos ni de fallas): sirve
+// para saber si hay algo nuevo que subir a la nube.
+function syncSignature(controllers, tombstones) {
+  const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const canonical = normalizeImportedControllers(controllers)
+    .sort(byId)
+    .map((controller) => ({ ...controller, issues: [...controller.issues].sort(byId) }));
+  return stableStringify([canonical, tombstones.controllers, tombstones.issues]);
 }
 
 // Combina mandos importados con los que ya existen. A diferencia del correo en
@@ -1325,6 +1914,7 @@ function mergeImportedControllers(current, imported) {
 const IDB_NAME = "mis-dualsense-db";
 const IDB_STORE = "kv";
 const IDB_DATA_KEY = "controllers";
+const IDB_TOMBSTONES_KEY = "tombstones";
 
 // Se cachea la conexión (en vez de abrir una nueva por cada lectura/escritura)
 // para no acumular conexiones IndexedDB abiertas de más.
@@ -1395,6 +1985,34 @@ async function saveControllersToStorage(controllers) {
   } catch (e) {}
 }
 
+// Las marcas de eliminación (ver mergeForSync) también viven en IndexedDB.
+async function loadTombstones() {
+  try {
+    return normalizeTombstones(await idbGet(IDB_TOMBSTONES_KEY));
+  } catch (e) {
+    return emptyTombstones();
+  }
+}
+
+async function saveTombstonesToStorage(tombstones) {
+  try {
+    await idbSet(IDB_TOMBSTONES_KEY, tombstones);
+  } catch (e) {}
+}
+
+// Pide al navegador que no borre los datos de la app por su cuenta cuando se
+// queda sin espacio (por defecto puede hacerlo con IndexedDB). Devuelve
+// "granted", "denied" o "unsupported".
+async function requestPersistentStorage() {
+  try {
+    if (typeof navigator === "undefined" || !navigator.storage || typeof navigator.storage.persist !== "function") return "unsupported";
+    if (typeof navigator.storage.persisted === "function" && (await navigator.storage.persisted())) return "granted";
+    return (await navigator.storage.persist()) ? "granted" : "denied";
+  } catch (e) {
+    return "unsupported";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Hook genérico: devuelve una versión "demorada" de un valor, que solo se
 // actualiza si el valor original se mantiene estable durante "delay" ms. Se
@@ -1439,6 +2057,7 @@ function DualSenseTracker() {
   const [importState, setImportState] = useState(null);
   const [printController, setPrintController] = useState(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [persistStatus, setPersistStatus] = useState("checking");
   const [accent, setAccent] = useState(() => {
     try {
       return localStorage.getItem(ACCENT_KEY) || "teal";
@@ -1448,7 +2067,6 @@ function DualSenseTracker() {
   });
 
   const pushDebounceTimerRef = useRef(null);
-  const skipNextAutoPushRef = useRef(false);
   const isFirstMountForAutoPushRef = useRef(true);
   const confirmDeleteIssueTimerRef = useRef(null);
   const openMenuTimerRef = useRef(null);
@@ -1460,19 +2078,52 @@ function DualSenseTracker() {
   const dataLoadedRef = useRef(false);
   const autoSyncIntervalRef = useRef(null);
   const lastAutoSyncAtRef = useRef(0);
+  const tombstonesRef = useRef(emptyTombstones());
+  const cloudSyncRef = useRef(cloudSync);
+  cloudSyncRef.current = cloudSync;
+  const syncingRef = useRef(false);
+  const resyncQueuedRef = useRef(false);
+  const csvInputRef = useRef(null);
 
+  // Un ciclo de sincronización: baja lo que hay en la nube, lo fusiona con los
+  // datos locales (ver mergeForSync), aplica el resultado y sube lo que falte.
+  // Solo se sube si hay algo distinto, así que repetirlo no cuesta nada.
+  async function runSyncOnce() {
+    const { token, gistId } = cloudSyncRef.current;
+    const pulled = await pullGist(token, gistId);
+    const merged = mergeForSync(controllersRef.current, tombstonesRef.current, pulled.controllers, pulled.tombstones, Date.now());
+    tombstonesRef.current = merged.tombstones;
+    saveTombstonesToStorage(merged.tombstones);
+    if (stableStringify(merged.controllers) !== stableStringify(controllersRef.current)) {
+      controllersRef.current = merged.controllers;
+      setControllers(merged.controllers);
+    }
+    if (syncSignature(merged.controllers, merged.tombstones) !== syncSignature(pulled.controllers, pulled.tombstones)) {
+      await pushGist(token, gistId, merged.controllers, merged.tombstones);
+    }
+  }
+
+  // Solo corre un ciclo a la vez; si llega otro pedido mientras tanto, se
+  // repite el ciclo al terminar (así no se pierde ningún cambio).
   async function syncNow() {
-    if (!cloudSync.token || !cloudSync.gistId) return;
+    const current = cloudSyncRef.current;
+    if (!current.token || !current.gistId) return;
+    if (syncingRef.current) {
+      resyncQueuedRef.current = true;
+      return;
+    }
+    syncingRef.current = true;
     setCloudSync((s) => ({ ...s, status: "syncing", error: "" }));
     try {
-      const pulled = await pullGist(cloudSync.token, cloudSync.gistId);
-      const merged = mergeImportedControllers(controllersRef.current, pulled).controllers;
-      await pushGist(cloudSync.token, cloudSync.gistId, merged);
-      skipNextAutoPushRef.current = true;
-      setControllers(merged);
+      do {
+        resyncQueuedRef.current = false;
+        await runSyncOnce();
+      } while (resyncQueuedRef.current);
       setCloudSync((s) => ({ ...s, status: "idle", lastSyncedAt: Date.now(), error: "" }));
     } catch (err) {
       setCloudSync((s) => ({ ...s, status: "idle", error: friendlySyncError(err) }));
+    } finally {
+      syncingRef.current = false;
     }
   }
 
@@ -1489,6 +2140,26 @@ function DualSenseTracker() {
     const id = uid();
     setToasts((list) => [...list, { id, message, undo }]);
     setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 5000);
+  }, []);
+
+  // Registra / anula marcas de eliminación (ver mergeForSync).
+  const markDeleted = useCallback((kind, ids, at) => {
+    if (ids.length === 0) return;
+    const next = { controllers: { ...tombstonesRef.current.controllers }, issues: { ...tombstonesRef.current.issues } };
+    ids.forEach((id) => {
+      next[kind][id] = at;
+    });
+    tombstonesRef.current = next;
+    saveTombstonesToStorage(next);
+  }, []);
+
+  const unmarkDeleted = useCallback((kind, ids) => {
+    const next = { controllers: { ...tombstonesRef.current.controllers }, issues: { ...tombstonesRef.current.issues } };
+    ids.forEach((id) => {
+      delete next[kind][id];
+    });
+    tombstonesRef.current = next;
+    saveTombstonesToStorage(next);
   }, []);
 
   const closeMenu = useCallback(() => {
@@ -1515,18 +2186,24 @@ function DualSenseTracker() {
           exportSingleController(found);
         } catch (e) {}
       }
+      const deletedAt = Date.now();
+      if (found) markDeleted("controllers", [controllerId], deletedAt);
       setControllers((list) => list.filter((c) => c.id !== controllerId));
       setOpenControllerId((current) => (current === controllerId ? null : current));
       closeMenu();
       if (found) {
-        pushToast("Mando eliminado", () => setControllers((list) => [...list, found]));
+        pushToast("Mando eliminado", () => {
+          unmarkDeleted("controllers", [found.id]);
+          const restored = { ...found, updatedAt: Math.max(Date.now(), deletedAt + 1) };
+          setControllers((list) => [...list, restored]);
+        });
       }
     },
-    [closeMenu, pushToast]
+    [closeMenu, pushToast, markDeleted, unmarkDeleted]
   );
 
   const toggleFavorite = useCallback((controllerId) => {
-    setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, favorite: !c.favorite } : c)));
+    setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, favorite: !c.favorite, updatedAt: Date.now() } : c)));
   }, []);
 
   const openEditController = useCallback(
@@ -1590,15 +2267,19 @@ function DualSenseTracker() {
     (controllerId, issueId) => {
       const controller = controllersRef.current.find((c) => c.id === controllerId);
       const issue = controller ? controller.issues.find((i) => i.id === issueId) : null;
+      const deletedAt = Date.now();
+      if (issue) markDeleted("issues", [issueId], deletedAt);
       setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, issues: c.issues.filter((i) => i.id !== issueId) } : c)));
       setConfirmDeleteIssue(null);
       if (issue) {
         pushToast("Falla eliminada", () => {
-          setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, issues: [...c.issues, issue] } : c)));
+          unmarkDeleted("issues", [issueId]);
+          const restored = { ...issue, updatedAt: Math.max(Date.now(), deletedAt + 1) };
+          setControllers((list) => list.map((c) => (c.id === controllerId ? { ...c, issues: [...c.issues, restored] } : c)));
         });
       }
     },
-    [pushToast]
+    [pushToast, markDeleted, unmarkDeleted]
   );
 
   const handleCancelConfirmIssue = useCallback(() => setConfirmDeleteIssue(null), []);
@@ -1629,9 +2310,18 @@ function DualSenseTracker() {
   const handleBackFromDetail = useCallback(() => setOpenControllerId(null), []);
 
   function applyImport(newControllers, addedControllerIds = [], addedIssueIdsByController = {}) {
-    setControllers(newControllers);
+    // Lo importado le gana a cualquier marca de eliminación vieja del mismo registro.
+    const revived = reviveFromTombstones(newControllers, tombstonesRef.current);
+    tombstonesRef.current = revived.tombstones;
+    saveTombstonesToStorage(revived.tombstones);
+    setControllers(revived.controllers);
     setImportState(null);
     pushToast("Mandos importados", () => {
+      // Al deshacer, lo que se quita cuenta como eliminado (para que la
+      // sincronización no lo traiga de vuelta desde la nube).
+      const undoneAt = Date.now();
+      markDeleted("controllers", addedControllerIds, undoneAt);
+      markDeleted("issues", [].concat(...Object.values(addedIssueIdsByController)), undoneAt);
       setControllers((list) =>
         list
           .filter((c) => !addedControllerIds.includes(c.id))
@@ -1653,12 +2343,16 @@ function DualSenseTracker() {
   // localStorage si venías de una versión anterior de la app).
   useEffect(() => {
     let cancelled = false;
-    loadInitialData().then((data) => {
+    Promise.all([loadInitialData(), loadTombstones()]).then(([data, tombstones]) => {
       if (cancelled) return;
       controllersRef.current = data;
+      tombstonesRef.current = tombstones;
       setControllers(data);
       dataLoadedRef.current = true;
       setDataLoaded(true);
+      requestPersistentStorage().then((status) => {
+        if (!cancelled) setPersistStatus(status);
+      });
     });
     return () => {
       cancelled = true;
@@ -1816,16 +2510,11 @@ function DualSenseTracker() {
       return;
     }
     if (!cloudSync.connected) return;
-    if (skipNextAutoPushRef.current) {
-      skipNextAutoPushRef.current = false;
-      return;
-    }
+    // Tras cada cambio se hace un ciclo completo (bajar, fusionar, subir) y no
+    // solo una subida: así un cambio hecho en otro dispositivo nunca se pisa.
     clearTimeout(pushDebounceTimerRef.current);
     pushDebounceTimerRef.current = setTimeout(() => {
-      setCloudSync((s) => ({ ...s, status: "syncing", error: "" }));
-      pushGist(cloudSync.token, cloudSync.gistId, controllersRef.current)
-        .then(() => setCloudSync((s) => ({ ...s, status: "idle", lastSyncedAt: Date.now(), error: "" })))
-        .catch((err) => setCloudSync((s) => ({ ...s, status: "idle", error: friendlySyncError(err) })));
+      syncNow();
     }, 2500);
     return () => clearTimeout(pushDebounceTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2026,7 +2715,7 @@ function DualSenseTracker() {
                       } catch (err) {
                         setImportState({
                           type: "error",
-                          message: "No se pudo importar el archivo. Verificá que sea un JSON exportado desde esta herramienta.",
+                          message: "No se pudo importar el archivo. Verifica que sea un JSON exportado desde esta herramienta.",
                         });
                         return;
                       }
@@ -2043,6 +2732,43 @@ function DualSenseTracker() {
                     };
                     reader.onerror = () => setImportState({ type: "error", message: "No se pudo leer el archivo." });
                     reader.readAsText(file);
+                    e.target.value = "";
+                  },
+                  className: "hidden",
+                }),
+                React.createElement("input", {
+                  ref: csvInputRef,
+                  type: "file",
+                  accept: ".csv,text/csv",
+                  "aria-label": "Archivo CSV para importar",
+                  onChange: function (e) {
+                    const file = e.target.files && e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (loadEvent) => {
+                      let result;
+                      try {
+                        result = buildCSVImport(decodeCSVBuffer(loadEvent.target.result), controllers);
+                      } catch (err) {
+                        setImportState({
+                          type: "error",
+                          message: "No se pudo importar el CSV. " + (err && err.message ? err.message : "Verifica que sea un archivo exportado desde esta herramienta."),
+                        });
+                        return;
+                      }
+                      if (result.controllers.length === 0) {
+                        setImportState({ type: "error", message: "El archivo no contiene mandos para importar." });
+                        return;
+                      }
+                      const merge = mergeImportedControllers(controllers, result.controllers);
+                      if (controllers.length > 0 || result.warnings.length > 0) {
+                        setImportState({ type: "confirm", merge, warnings: result.warnings });
+                      } else {
+                        applyImport(merge.controllers, merge.addedControllerIds, merge.addedIssueIdsByController);
+                      }
+                    };
+                    reader.onerror = () => setImportState({ type: "error", message: "No se pudo leer el archivo." });
+                    reader.readAsArrayBuffer(file);
                     e.target.value = "";
                   },
                   className: "hidden",
@@ -2231,7 +2957,7 @@ function DualSenseTracker() {
         initial: controllerModal.data,
         onCancel: () => setControllerModal(null),
         onSave: function (data) {
-          if (controllerModal.mode === "new") setControllers((list) => [...list, data]);
+          if (controllerModal.mode === "new") setControllers((list) => [...list, { ...data, updatedAt: Date.now() }]);
           else
             setControllers((list) =>
               list.map((c) =>
@@ -2255,6 +2981,7 @@ function DualSenseTracker() {
                       estado: data.estado,
                       prestadoA: data.prestadoA,
                       prestadoDesde: data.prestadoDesde,
+                      updatedAt: Date.now(),
                     }
                   : c
               )
@@ -2302,6 +3029,11 @@ function DualSenseTracker() {
           setSettingsModalOpen(false);
           fileInputRef.current && fileInputRef.current.click();
         },
+        onImportCSV: () => {
+          setSettingsModalOpen(false);
+          csvInputRef.current && csvInputRef.current.click();
+        },
+        persistStatus,
         onClose: () => setSettingsModalOpen(false),
       }),
     syncModalOpen &&
@@ -2312,18 +3044,20 @@ function DualSenseTracker() {
             setCloudSync((s) => ({ ...s, status: "connecting", error: "" }));
             try {
               let gistId = await findExistingGist(token);
-              let merged = controllersRef.current;
+              let merged = { controllers: controllersRef.current, tombstones: tombstonesRef.current };
               if (gistId) {
                 const pulled = await pullGist(token, gistId);
-                merged = mergeImportedControllers(controllersRef.current, pulled).controllers;
-                await pushGist(token, gistId, merged);
+                merged = mergeForSync(controllersRef.current, tombstonesRef.current, pulled.controllers, pulled.tombstones, Date.now());
+                await pushGist(token, gistId, merged.controllers, merged.tombstones);
               } else {
-                gistId = await createGist(token, controllersRef.current);
+                gistId = await createGist(token, controllersRef.current, tombstonesRef.current);
               }
               localStorage.setItem(GH_TOKEN_KEY, token);
               localStorage.setItem(GH_GIST_ID_KEY, gistId);
-              skipNextAutoPushRef.current = true;
-              setControllers(merged);
+              tombstonesRef.current = merged.tombstones;
+              saveTombstonesToStorage(merged.tombstones);
+              controllersRef.current = merged.controllers;
+              setControllers(merged.controllers);
               setCloudSync({ token, gistId, connected: true, status: "idle", lastSyncedAt: Date.now(), error: "" });
               pushToast("Sincronización activada");
             } catch (err) {
@@ -2410,6 +3144,14 @@ function DualSenseTracker() {
                       importState.merge.renamedIssuesCount === 1 ? "falla se renombró" : "fallas se renombraron",
                       " ",
                       "por coincidir en descripción con una existente."
+                    ),
+                  importState.warnings &&
+                    importState.warnings.length > 0 &&
+                    React.createElement(
+                      "div",
+                      { className: "flex flex-col gap-1" },
+                      React.createElement("p", { className: "text-xs text-amber-400" }, "Avisos sobre el archivo:"),
+                      importState.warnings.map((warning, i) => React.createElement("p", { key: i, className: "text-xs text-slate-400" }, "• " + warning))
                     ),
                   React.createElement("p", { className: "text-sm text-slate-300" }, "Esta acción se puede deshacer.")
                 ),
@@ -2520,7 +3262,7 @@ function EmptyState({ onAdd }) {
     React.createElement(
       "p",
       { className: "text-sm text-slate-500 mb-5 max-w-xs" },
-      "Agregá tu primer DualSense y anotá las fallas que le vayas notando: drift, gatillos, batería..."
+      "Agrega tu primer DualSense y anota las fallas que le vayas notando: drift, gatillos, batería..."
     ),
     React.createElement(
       "button",
@@ -4054,7 +4796,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
             React.createElement(
               "p",
               { className: "text-xs text-slate-500" },
-              "En tu otro dispositivo, pegá el mismo token en esta misma pantalla para que ambos compartan datos."
+              "En tu otro dispositivo, pega el mismo token en esta misma pantalla para que ambos compartan datos."
             ),
             React.createElement(
               "div",
@@ -4078,7 +4820,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
             React.createElement(
               "p",
               { className: "text-sm text-slate-300" },
-              "Guardá tus mandos en un Gist privado de GitHub para que coincidan entre tu notebook y tu celular. Los datos viajan directo desde tu navegador a GitHub, sin pasar por ningún otro servidor."
+              "Guarda tus mandos en un Gist privado de GitHub para que coincidan entre tu computadora y tu celular. Los datos viajan directo desde tu navegador a GitHub, sin pasar por ningún otro servidor."
             ),
             React.createElement(
               "ol",
@@ -4086,7 +4828,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
               React.createElement(
                 "li",
                 null,
-                "Creá un token en",
+                "Crea un token en",
                 " ",
                 React.createElement(
                   "a",
@@ -4103,8 +4845,8 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                 React.createElement("span", { className: "font-label text-slate-300" }, "gist"),
                 " únicamente."
               ),
-              React.createElement("li", null, "Copialo y pegalo acá abajo."),
-              React.createElement("li", null, "En tu otro dispositivo, repetí este paso con el mismo token: va a encontrar este mismo gist solo.")
+              React.createElement("li", null, "Cópialo y pégalo aquí abajo."),
+              React.createElement("li", null, "En tu otro dispositivo, repite este paso con el mismo token: encontrará este mismo gist automáticamente.")
             ),
             React.createElement(
               "div",
@@ -4144,10 +4886,16 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
 // Modal de Configuración: agrupa todo lo que antes vivía suelto en el
 // encabezado (color de acento, sincronización, exportar/importar) detrás de
 // un único botón de engranaje en la esquina superior derecha.
-function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasControllers, hasUnsavedExport, onExportJSON, onExportCSV, onImportJSON, onClose }) {
+function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasControllers, hasUnsavedExport, onExportJSON, onExportCSV, onImportJSON, onImportCSV, persistStatus, onClose }) {
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const showExportBadge = hasUnsavedExport && hasControllers;
+  const persistText =
+    persistStatus === "granted"
+      ? "Almacenamiento protegido: el navegador no borrará estos datos por su cuenta."
+      : persistStatus === "denied"
+        ? "Almacenamiento sin protección: si el dispositivo se queda sin espacio, el navegador podría borrar estos datos."
+        : "";
   return React.createElement(
     ModalShell,
     { title: "Configuración", titleClassName: "font-label text-sm tracking-wide text-slate-300 uppercase", onCancel: onClose },
@@ -4247,7 +4995,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
             importOpen &&
               React.createElement(
                 "div",
-                { className: "px-3 pb-3 pt-1 border-t border-slate-700" },
+                { className: "flex flex-col gap-2 px-3 pb-3 pt-1 border-t border-slate-700" },
                 React.createElement(
                   "button",
                   {
@@ -4257,10 +5005,21 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                   },
                   React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
                   "Importar JSON"
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: onImportCSV,
+                    className: "w-full flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+                  },
+                  React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
+                  "Importar CSV"
                 )
               )
           )
-        )
+        ),
+        persistText && React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, persistText)
       ),
       React.createElement(
         "div",
@@ -4291,7 +5050,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
             cloudSync.connected ? "Gestionar" : "Conectar"
           )
         ),
-        React.createElement("p", { className: "text-xs text-slate-500 mt-1.5" }, "Cada pocos minutos se sincroniza sola; también puedes forzarla desde acá.")
+        React.createElement("p", { className: "text-xs text-slate-500 mt-1.5" }, "Cada pocos minutos se sincroniza sola; también puedes forzarla desde aquí.")
       ),
       React.createElement(
         "div",
@@ -4347,7 +5106,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
   function handleSave() {
     const trimmed = nombre.trim();
     if (!trimmed) {
-      setError("Ingresá un apodo o nombre para identificar el mando.");
+      setError("Ingresa un apodo o nombre para identificar el mando.");
       return;
     }
     onSave({
@@ -4428,7 +5187,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
           { id: "dualsense-color-suggestions" },
           COLOR_SUGGESTIONS.map((suggestion) => React.createElement("option", { key: suggestion, value: suggestion }))
         ),
-        React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "Escribí el color o elegí una sugerencia; el círculo es solo para identificarlo de un vistazo.")
+        React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "Escribe el color o elige una sugerencia; el círculo es solo para identificarlo de un vistazo.")
       ),
       React.createElement(
         "div",
@@ -4744,7 +5503,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
             "w-full px-3 py-2 rounded-md border bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 " +
             (titleError ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-accent-500 focus:border-accent-500"),
         }),
-        titleError && React.createElement("p", { className: "text-xs text-red-400 mt-1" }, "Ingresá una descripción para guardar la falla.")
+        titleError && React.createElement("p", { className: "text-xs text-red-400 mt-1" }, "Ingresa una descripción para guardar la falla.")
       ),
       React.createElement(
         "div",

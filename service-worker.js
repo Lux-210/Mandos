@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-dualsense-v9';
+const CACHE_NAME = 'mis-dualsense-v10';
 
 const APP_SHELL = [
   './index.html',
