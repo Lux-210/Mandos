@@ -1,0 +1,13 @@
+{
+  "name": "mis-dualsense-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pruebas de Mis DualSense (jsdom + IndexedDB simulado)",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.1.0"
+  }
+}

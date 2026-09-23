@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-dualsense-v10';
+const CACHE_NAME = 'mis-dualsense-v11';
 
 const APP_SHELL = [
   './index.html',
@@ -22,8 +22,13 @@ const EXTERNAL_SHELL = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async cache => {
+      // "index.html" es el único archivo sin el cual el offline no puede
+      // funcionar en absoluto: si falla, se deja que la instalación falle
+      // (el navegador reintentará solo más adelante) en vez de quedar con un
+      // caché a medias que parece instalado pero no sirve de nada offline.
+      await cache.add('./index.html');
       await Promise.all(
-        APP_SHELL.map(url => cache.add(url).catch(() => {}))
+        APP_SHELL.filter(url => url !== './index.html').map(url => cache.add(url).catch(() => {}))
       );
       await Promise.all(
         EXTERNAL_SHELL.map(url =>
@@ -65,6 +70,13 @@ self.addEventListener('fetch', event => {
   if (isOwnAppShell) {
     // Red primero: si estamos online, siempre mostramos la última versión publicada.
     // Si falla la red (offline), servimos la última copia guardada en caché.
+    //
+    // Para una navegación (abrir la app), la URL exacta de la petición (por
+    // ejemplo ".../mis-dualsense/" o ".../mis-dualsense/?algo") casi nunca es
+    // la misma clave con la que "index.html" quedó guardado, así que buscarla
+    // tal cual en el caché fallaría y dejaría la pantalla en blanco estando
+    // offline. Por eso toda navegación cae, como último respaldo, siempre al
+    // "index.html" guardado.
     event.respondWith(
       fetch(event.request)
         .then(resp => {
@@ -74,7 +86,9 @@ self.addEventListener('fetch', event => {
           }
           return resp;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() =>
+          caches.match(event.request).then(cached => cached || (isNavigation ? caches.match('./index.html') : undefined))
+        )
     );
     return;
   }
