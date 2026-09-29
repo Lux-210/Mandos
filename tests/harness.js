@@ -13,6 +13,7 @@ const HTML_PATH = process.env.DUALSENSE_HTML || path.join(__dirname, "..", "inde
 const EXPOSED = [
   "mergeForSync", "mergeControllerForSync", "reviveFromTombstones", "pruneTombstones", "normalizeTombstones",
   "emptyTombstones", "syncSignature", "stableStringify", "controllerLastActivity", "normalizeImportedControllers",
+  "controllerMatchesQuery", "findDuplicateController", "normalizeText",
   "mergeImportedControllers", "buildControllersCSVRows", "buildCSVImport", "parseCSVRows", "detectCSVDelimiter",
   "parseCSVNumber", "parseCSVDate", "decodeCSVBuffer", "requestPersistentStorage", "emptyController", "emptyIssue",
   "csvEscape", "formatDate", "ISSUE_TYPES", "TOMBSTONE_MAX_AGE_MS", "CONTROLLER_STATUS_META", "STATUS_META",

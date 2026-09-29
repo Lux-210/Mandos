@@ -1040,6 +1040,25 @@ function nextAvailableTitle(issues, titulo, excludeId) {
   return candidate;
 }
 
+// A diferencia de una falla duplicada (donde renombrar automáticamente tiene
+// sentido), dos mandos pueden legítimamente compartir nombre y color (por
+// ejemplo, dos mandos blancos idénticos), así que acá solo se avisa y se deja
+// decidir: seguir guardando igual, o volver a revisar los datos.
+function findDuplicateController(controllers, data, excludeId) {
+  const serie = (data.numeroSerie || "").trim().toLowerCase();
+  if (serie) {
+    const bySerie = controllers.find((c) => c.id !== excludeId && (c.numeroSerie || "").trim().toLowerCase() === serie);
+    if (bySerie) return { existing: bySerie, reason: "serie" };
+  }
+  const nombre = normalizeText(data.nombre).trim();
+  const color = normalizeText(data.color).trim();
+  if (nombre && color) {
+    const byNombreColor = controllers.find((c) => c.id !== excludeId && normalizeText(c.nombre).trim() === nombre && normalizeText(c.color).trim() === color);
+    if (byNombreColor) return { existing: byNombreColor, reason: "nombre_color" };
+  }
+  return null;
+}
+
 function normalizeText(text) {
   return (text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -1061,6 +1080,18 @@ function issueMatchesQuery(issue, query) {
     normalizeText(issue.tipo).includes(query) ||
     normalizeText(issue.notes).includes(query) ||
     (issue.tags || []).some((tag) => normalizeText(tag).includes(query))
+  );
+}
+
+// Antes la búsqueda de mandos solo miraba el nombre; ahora también encuentra
+// un mando por su color, número de serie, notas o a quién se lo prestaste.
+function controllerMatchesQuery(controller, query) {
+  return (
+    normalizeText(controller.nombre).includes(query) ||
+    normalizeText(controller.color).includes(query) ||
+    normalizeText(controller.numeroSerie).includes(query) ||
+    normalizeText(controller.notes).includes(query) ||
+    normalizeText(controller.prestadoA).includes(query)
   );
 }
 
@@ -2062,6 +2093,7 @@ function DualSenseTracker() {
   const [printController, setPrintController] = useState(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [persistStatus, setPersistStatus] = useState("checking");
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [accent, setAccent] = useState(() => {
     try {
       return localStorage.getItem(ACCENT_KEY) || "teal";
@@ -2343,6 +2375,15 @@ function DualSenseTracker() {
     controllersRef.current = controllers;
   }, [controllers]);
 
+  // Escucha el aviso de "hay una versión nueva del service worker" que
+  // dispara el <script> de registro en index.html (ver la constante
+  // "mis-dualsense-update-available").
+  useEffect(() => {
+    const handleUpdateAvailable = () => setUpdateAvailable(true);
+    window.addEventListener("mis-dualsense-update-available", handleUpdateAvailable);
+    return () => window.removeEventListener("mis-dualsense-update-available", handleUpdateAvailable);
+  }, []);
+
   // Carga inicial desde IndexedDB (con migración automática desde
   // localStorage si venías de una versión anterior de la app).
   useEffect(() => {
@@ -2574,7 +2615,7 @@ function DualSenseTracker() {
   const visibleControllers = useMemo(
     () =>
       sortControllers(
-        hasQuery ? filteredControllers.filter((c) => normalizeText(c.nombre).includes(normalizedQuery)) : filteredControllers,
+        hasQuery ? filteredControllers.filter((c) => controllerMatchesQuery(c, normalizedQuery)) : filteredControllers,
         sortBy
       ),
     [filteredControllers, hasQuery, normalizedQuery, sortBy]
@@ -2614,6 +2655,21 @@ function DualSenseTracker() {
       style: { colorScheme: "dark" },
       onClick: () => openMenu && closeMenu(),
     },
+    updateAvailable &&
+      React.createElement(
+        "div",
+        { className: "fixed top-0 inset-x-0 z-50 bg-accent-600 text-white px-4 py-2 flex items-center justify-center gap-3 text-sm shadow-lg" },
+        React.createElement("span", null, "Hay una versión nueva de la app lista para usar."),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => window.location.reload(),
+            className: "px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 font-medium transition-colors",
+          },
+          "Recargar"
+        )
+      ),
     React.createElement(
       "div",
       { className: "max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10" },
@@ -2959,6 +3015,7 @@ function DualSenseTracker() {
       React.createElement(ControllerModal, {
         mode: controllerModal.mode,
         initial: controllerModal.data,
+        existingControllers: controllers,
         onCancel: () => setControllerModal(null),
         onSave: function (data) {
           if (controllerModal.mode === "new") setControllers((list) => [...list, { ...data, updatedAt: Date.now() }]);
@@ -4853,6 +4910,11 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
               React.createElement("li", null, "En tu otro dispositivo, repite este paso con el mismo token: encontrará este mismo gist automáticamente.")
             ),
             React.createElement(
+              "p",
+              { className: "text-xs text-slate-500" },
+              "El token queda guardado sin cifrar en este dispositivo (no hay ningún servidor propio de por medio). Si compartes el dispositivo o usas un navegador público, evita conectar la sincronización, o revoca el token después desde GitHub."
+            ),
+            React.createElement(
               "div",
               null,
               React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Token de GitHub"),
@@ -5082,7 +5144,7 @@ function VisibilityToggle({ visible, onToggle, label }) {
   );
 }
 
-function ControllerModal({ mode, initial, onCancel, onSave }) {
+function ControllerModal({ mode, initial, existingControllers, onCancel, onSave }) {
   const [nombre, setNombre] = useState(initial.nombre);
   const [color, setColor] = useState(initial.color);
   const [colorHex, setColorHex] = useState(initial.colorHex || DEFAULT_COLOR_HEX);
@@ -5101,10 +5163,13 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
   const [numeroSerie, setNumeroSerie] = useState(initial.numeroSerie || "");
   const [notes, setNotes] = useState(initial.notes || "");
   const [error, setError] = useState("");
+  // {existing, reason, payload} — ver findDuplicateController.
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
 
   function handleColorTextChange(value) {
     setColor(value);
     if (COLOR_HEX_MAP[value]) setColorHex(COLOR_HEX_MAP[value]);
+    if (duplicateWarning) setDuplicateWarning(null);
   }
 
   function handleSave() {
@@ -5113,7 +5178,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
       setError("Ingresa un apodo o nombre para identificar el mando.");
       return;
     }
-    onSave({
+    const payload = {
       ...initial,
       nombre: trimmed,
       color: color.trim(),
@@ -5132,7 +5197,13 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
       finGarantia: dateInputValueToTimestamp(finGarantiaValue),
       numeroSerie: numeroSerie.trim(),
       notes: notes.trim(),
-    });
+    };
+    const duplicate = findDuplicateController(existingControllers, payload, initial.id);
+    if (duplicate) {
+      setDuplicateWarning({ ...duplicate, payload });
+      return;
+    }
+    onSave(payload);
   }
 
   return React.createElement(
@@ -5152,6 +5223,7 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
           onChange: (e) => {
             setNombre(e.target.value);
             if (error) setError("");
+            if (duplicateWarning) setDuplicateWarning(null);
           },
           onKeyDown: (e) => e.key === "Enter" && handleSave(),
           placeholder: "Ej: Mando principal, El de mi hermano...",
@@ -5358,7 +5430,10 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
         React.createElement("input", {
           type: "text",
           value: numeroSerie,
-          onChange: (e) => setNumeroSerie(e.target.value),
+          onChange: (e) => {
+            setNumeroSerie(e.target.value);
+            if (duplicateWarning) setDuplicateWarning(null);
+          },
           placeholder: "Ej: 44205G0123456",
           className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
         }),
@@ -5376,11 +5451,43 @@ function ControllerModal({ mode, initial, onCancel, onSave }) {
           className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
         })
       ),
+      duplicateWarning &&
+        React.createElement(
+          "div",
+          { role: "status", className: "bg-amber-900 border border-amber-700 rounded-md p-3" },
+          React.createElement(
+            "p",
+            { className: "text-xs text-amber-200 mb-2" },
+            duplicateWarning.reason === "serie"
+              ? 'Ya existe un mando con el mismo número de serie: "' + duplicateWarning.existing.nombre + '". ¿Quieres guardarlo igual?'
+              : 'Ya existe un mando con el mismo nombre y color: "' + duplicateWarning.existing.nombre + '". ¿Quieres guardarlo igual?'
+          ),
+          React.createElement(
+            "div",
+            { className: "flex gap-2" },
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                autoFocus: true,
+                onClick: () => onSave(duplicateWarning.payload),
+                className: "flex-1 text-xs font-medium text-white bg-amber-700 hover:bg-amber-600 rounded py-1.5 transition-colors",
+              },
+              "Guardar igual"
+            ),
+            React.createElement(
+              "button",
+              { type: "button", onClick: () => setDuplicateWarning(null), className: "flex-1 text-xs font-medium text-slate-300 hover:bg-slate-600 rounded py-1.5 transition-colors" },
+              "Revisar datos"
+            )
+          )
+        ),
       React.createElement(
         "div",
         { className: "flex justify-end gap-2 mt-1" },
         React.createElement("button", { type: "button", onClick: onCancel, className: "px-3.5 py-2 rounded-md text-sm font-medium text-slate-400 hover:bg-slate-700 transition-colors" }, "Cancelar"),
-        React.createElement("button", { type: "button", onClick: handleSave, className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors" }, "Guardar")
+        !duplicateWarning &&
+          React.createElement("button", { type: "button", onClick: handleSave, className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors" }, "Guardar")
       )
     )
   );
@@ -5692,7 +5799,25 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
   // Si se abre el archivo directamente (file://), esto no hace nada (y no rompe nada).
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      navigator.serviceWorker.register('service-worker.js').then((registration) => {
+        // Si mientras la app ya está abierta se detecta e instala una versión
+        // nueva del service worker, avisa a la app (ver el <script> de React,
+        // que escucha este mismo evento) para que muestre un botón de
+        // "Recargar" en vez de dejar la actualización pasar inadvertida.
+        function notifyIfUpdated(worker) {
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              window.dispatchEvent(new CustomEvent('mis-dualsense-update-available'));
+            }
+          });
+        }
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          window.dispatchEvent(new CustomEvent('mis-dualsense-update-available'));
+        }
+        registration.addEventListener('updatefound', () => {
+          if (registration.installing) notifyIfUpdated(registration.installing);
+        });
+      }).catch(() => {});
     });
   }
 </script>
