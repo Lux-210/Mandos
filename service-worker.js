@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-dualsense-v12';
+const CACHE_NAME = 'mis-dualsense-v13';
 
 const APP_SHELL = [
   './index.html',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './icons/icon-512.png',
   './icons/icon-512-maskable.png',
   './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
 ];
 
 // Estos dos cambian seguido durante el desarrollo activo: van con estrategia "red primero".
