@@ -2081,7 +2081,10 @@ function DualSenseTracker() {
   const [toasts, setToasts] = useState([]);
   const [hasUnsavedExport, setHasUnsavedExport] = useState(false);
   const [cloudSync, setCloudSync] = useState(() => {
-    const token = localStorage.getItem(GH_TOKEN_KEY) || "";
+    // El token puede venir de localStorage (el usuario eligió recordarlo) o,
+    // si eligió no recordarlo, de sessionStorage (dura mientras esta pestaña
+    // siga abierta y desaparece al cerrarla).
+    const token = localStorage.getItem(GH_TOKEN_KEY) || sessionStorage.getItem(GH_TOKEN_KEY) || "";
     const gistId = localStorage.getItem(GH_GIST_ID_KEY) || "";
     return { token, gistId, connected: !(!token || !gistId), status: "idle", lastSyncedAt: null, error: "" };
   });
@@ -2428,7 +2431,7 @@ function DualSenseTracker() {
       return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
     }
     function anyModalOpen() {
-      return !!(controllerModal || issueModal || syncModalOpen || importState);
+      return !!(controllerModal || issueModal || syncModalOpen || importState || settingsModalOpen);
     }
     function onKeyDown(e) {
       if (e.key === "Escape") {
@@ -2439,6 +2442,7 @@ function DualSenseTracker() {
         clearTimeout(confirmDeleteIssueTimerRef.current);
         setImportState(null);
         setSyncModalOpen(false);
+        setSettingsModalOpen(false);
         return;
       }
       // Los atajos de una sola tecla no deben interferir mientras se escribe
@@ -2476,7 +2480,7 @@ function DualSenseTracker() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [controllerModal, issueModal, syncModalOpen, importState, activeTab, openControllerId, handleOpenController]);
+  }, [controllerModal, issueModal, syncModalOpen, importState, settingsModalOpen, activeTab, openControllerId, handleOpenController]);
 
   useEffect(() => {
     if (!dataLoaded) return;
@@ -3100,7 +3104,7 @@ function DualSenseTracker() {
     syncModalOpen &&
       React.createElement(SyncModal, {
         cloudSync,
-        onConnect: (token) =>
+        onConnect: (token, remember) =>
           (async () => {
             setCloudSync((s) => ({ ...s, status: "connecting", error: "" }));
             try {
@@ -3113,7 +3117,18 @@ function DualSenseTracker() {
               } else {
                 gistId = await createGist(token, controllersRef.current, tombstonesRef.current);
               }
-              localStorage.setItem(GH_TOKEN_KEY, token);
+              // El token solo se persiste en localStorage (sobrevive a cerrar
+              // la pestaña) si el usuario eligió recordarlo; si no, se guarda
+              // en sessionStorage (se pierde al cerrar la pestaña) para que
+              // igual funcione la sincronización automática durante esta
+              // sesión, sin quedar guardado en el dispositivo a largo plazo.
+              if (remember) {
+                localStorage.setItem(GH_TOKEN_KEY, token);
+                sessionStorage.removeItem(GH_TOKEN_KEY);
+              } else {
+                sessionStorage.setItem(GH_TOKEN_KEY, token);
+                localStorage.removeItem(GH_TOKEN_KEY);
+              }
               localStorage.setItem(GH_GIST_ID_KEY, gistId);
               tombstonesRef.current = merged.tombstones;
               saveTombstonesToStorage(merged.tombstones);
@@ -3128,6 +3143,7 @@ function DualSenseTracker() {
         onSyncNow: syncNow,
         onDisconnect: () => {
           localStorage.removeItem(GH_TOKEN_KEY);
+          sessionStorage.removeItem(GH_TOKEN_KEY);
           localStorage.removeItem(GH_GIST_ID_KEY);
           clearTimeout(pushDebounceTimerRef.current);
           setCloudSync({ token: "", gistId: "", connected: false, status: "idle", lastSyncedAt: null, error: "" });
@@ -4773,6 +4789,31 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
 
 function ModalShell({ title, titleClassName, onCancel, children }) {
   const ref = useRef(null);
+  const previouslyFocusedRef = useRef(null);
+  // Se captura quién tenía el foco ANTES de insertar el modal en el
+  // documento, durante el renderizado (no en un efecto): si se capturara en
+  // un efecto, un campo interno con autoFocus ya habría movido el foco para
+  // cuando ese efecto corre, y se perdería la referencia al elemento real
+  // que abrió el modal (típicamente el botón que se clickeó).
+  if (previouslyFocusedRef.current === null) {
+    previouslyFocusedRef.current = document.activeElement;
+  }
+  // Accesibilidad: al abrir, mover el foco adentro del diálogo (en vez de
+  // dejarlo en el botón que lo abrió, detrás del fondo oscurecido); al
+  // cerrar, devolverlo a donde estaba, para no perder el lugar en la página.
+  useEffect(() => {
+    const el = ref.current;
+    // Si algún campo interno ya pidió el foco con autoFocus (ej. el campo
+    // del token), se respeta eso; si no, el foco por defecto va al propio
+    // diálogo.
+    if (el && !el.contains(document.activeElement)) el.focus();
+    return () => {
+      const toRestore = previouslyFocusedRef.current;
+      if (toRestore && typeof toRestore.focus === "function" && document.contains(toRestore)) {
+        toRestore.focus();
+      }
+    };
+  }, []);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -4803,10 +4844,11 @@ function ModalShell({ title, titleClassName, onCancel, children }) {
       "div",
       {
         ref,
+        tabIndex: -1,
         role: "dialog",
         "aria-modal": "true",
         "aria-labelledby": "dualsense-modal-title",
-        className: "relative bg-slate-800 border border-slate-700 rounded-lg w-full max-w-sm max-h-[90vh] overflow-y-auto p-5",
+        className: "relative bg-slate-800 border border-slate-700 rounded-lg w-full max-w-sm max-h-[90vh] overflow-y-auto p-5 focus:outline-none",
       },
       React.createElement(
         "div",
@@ -4825,6 +4867,7 @@ function ModalShell({ title, titleClassName, onCancel, children }) {
 
 function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
   const [token, setToken] = useState("");
+  const [rememberToken, setRememberToken] = useState(true);
   const isConnecting = cloudSync.status === "connecting";
   const isSyncing = cloudSync.status === "syncing";
   return React.createElement(
@@ -4912,7 +4955,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
             React.createElement(
               "p",
               { className: "text-xs text-slate-500" },
-              "El token queda guardado sin cifrar en este dispositivo (no hay ningún servidor propio de por medio). Si compartes el dispositivo o usas un navegador público, evita conectar la sincronización, o revoca el token después desde GitHub."
+              "Si marcas la opción de recordarlo, el token queda guardado sin cifrar en este dispositivo (no hay ningún servidor propio de por medio). Si compartes el dispositivo o usas un navegador público, desmarca esa opción o evita conectar la sincronización, y revoca el token después desde GitHub."
             ),
             React.createElement(
               "div",
@@ -4923,10 +4966,26 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                 autoFocus: true,
                 value: token,
                 onChange: (e) => setToken(e.target.value),
-                onKeyDown: (e) => e.key === "Enter" && token.trim() && onConnect(token.trim()),
+                onKeyDown: (e) => e.key === "Enter" && token.trim() && onConnect(token.trim(), rememberToken),
                 placeholder: "ghp_...",
                 className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
               })
+            ),
+            React.createElement(
+              "label",
+              { className: "flex items-start gap-2 text-xs text-slate-400 cursor-pointer" },
+              React.createElement("input", {
+                type: "checkbox",
+                checked: rememberToken,
+                onChange: (e) => setRememberToken(e.target.checked),
+                className: "mt-0.5 w-3.5 h-3.5 rounded border-slate-600 bg-slate-700 text-accent-400 focus:ring-accent-500",
+              }),
+              React.createElement(
+                "span",
+                null,
+                "Recordar este token en este dispositivo. ",
+                React.createElement("span", { className: "text-slate-500" }, "Si lo desmarcas, solo se usa mientras esta pestaña siga abierta y tendrás que pegarlo de nuevo la próxima vez.")
+              )
             ),
             cloudSync.error && React.createElement("p", { className: "text-xs text-red-400" }, cloudSync.error),
             React.createElement(
@@ -4938,7 +4997,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                 {
                   type: "button",
                   disabled: !token.trim() || isConnecting,
-                  onClick: () => onConnect(token.trim()),
+                  onClick: () => onConnect(token.trim(), rememberToken),
                   className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                 },
                 isConnecting ? "Conectando..." : "Conectar"

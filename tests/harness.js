@@ -89,6 +89,7 @@ async function waitFor(condition, { timeout = 4000, interval = 20, message = "co
 // Crea un "dispositivo": una ventana con la app cargada.
 //   indexedDB    reutiliza el almacenamiento de un dispositivo anterior (simula recargar)
 //   localStorage claves iniciales (por ejemplo el token de sincronización)
+//   sessionStorage claves iniciales (ej. token de sincronización no recordado)
 //   fetch        implementación de fetch (servidor de GitHub falso)
 //   storage      simula navigator.storage ({ persist, persisted })
 //   seed         { controllers, tombstones } guardados de antemano
@@ -113,6 +114,7 @@ async function createDevice(options = {}) {
   win.IDBKeyRange = IDBKeyRange;
   if (options.seed) await seedIDB(factory, options.seed);
   Object.entries(options.localStorage || {}).forEach(([k, v]) => win.localStorage.setItem(k, v));
+  Object.entries(options.sessionStorage || {}).forEach(([k, v]) => win.sessionStorage.setItem(k, v));
   const fetchStats = { calls: 0, inflight: 0 };
   if (options.fetch) {
     win.fetch = async (...args) => {
