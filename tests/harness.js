@@ -17,6 +17,7 @@ const EXPOSED = [
   "mergeImportedControllers", "buildControllersCSVRows", "buildCSVImport", "parseCSVRows", "detectCSVDelimiter",
   "parseCSVNumber", "parseCSVDate", "decodeCSVBuffer", "requestPersistentStorage", "emptyController", "emptyIssue",
   "csvEscape", "formatDate", "ISSUE_TYPES", "TOMBSTONE_MAX_AGE_MS", "CONTROLLER_STATUS_META", "STATUS_META",
+  "ErrorBoundary",
 ];
 
 let cachedScripts = null;

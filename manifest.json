@@ -9,6 +9,23 @@
   "theme_color": "#0f172a",
   "orientation": "any",
   "lang": "es",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "screenshots": [
+    {
+      "src": "icons/screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Mis DualSense en pantalla ancha"
+    },
+    {
+      "src": "icons/screenshot-narrow.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mis DualSense en el celular"
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",

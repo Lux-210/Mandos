@@ -2063,6 +2063,53 @@ function useDebouncedValue(value, delay) {
 }
 
 // ---------------------------------------------------------------------------
+// Red de seguridad: si algo revienta durante un render (p. ej. un dato
+// corrupto tras importar un JSON mal formado), evita que la app entera
+// quede en pantalla blanca sin ningún mensaje.
+// ---------------------------------------------------------------------------
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    try {
+      console.error("Mis DualSense: error no capturado en el render", error, info);
+    } catch (e) {}
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return React.createElement(
+      "div",
+      { className: "font-body min-h-screen bg-slate-900 text-slate-200 flex items-center justify-center p-4", style: { colorScheme: "dark" } },
+      React.createElement(
+        "div",
+        { className: "max-w-sm w-full text-center bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-5" },
+        React.createElement("p", { className: "text-2xl mb-3" }, "😕"),
+        React.createElement("h1", { className: "text-2xl font-semibold text-slate-100 mb-2" }, "Ocurrió un error inesperado"),
+        React.createElement(
+          "p",
+          { className: "text-sm text-slate-400 mb-5" },
+          "Algo salió mal al mostrar la app. Tus mandos y fallas siguen guardados en este dispositivo: recargar la página normalmente lo soluciona."
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => window.location.reload(),
+            className: "px-3.5 py-2 rounded-md text-sm font-medium bg-accent-600 text-white hover:bg-accent-500 transition-colors",
+          },
+          "Recargar la app"
+        )
+      )
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 function DualSenseTracker() {
@@ -5850,7 +5897,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(DualSenseTracker, null));
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(DualSenseTracker, null)));
 
 </script>
 <script>
