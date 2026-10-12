@@ -3322,7 +3322,7 @@ function DualSenseTracker() {
     toasts.length > 0 &&
       React.createElement(
         "div",
-        { className: "fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2" },
+        { role: "status", "aria-live": "polite", className: "fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2" },
         toasts.map((toast) =>
           React.createElement(
             "div",
@@ -4952,7 +4952,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
               { href: `https://gist.github.com/${cloudSync.gistId}`, target: "_blank", rel: "noopener noreferrer", className: "text-xs text-accent-400 hover:text-accent-300 underline w-fit" },
               "Ver el gist en GitHub"
             ),
-            cloudSync.error && React.createElement("p", { className: "text-xs text-red-400" }, cloudSync.error),
+            cloudSync.error && React.createElement("p", { role: "alert", className: "text-xs text-red-400" }, cloudSync.error),
             React.createElement(
               "p",
               { className: "text-xs text-slate-500" },
@@ -5044,7 +5044,7 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
                 React.createElement("span", { className: "text-slate-500" }, "Si lo desmarcas, solo se usa mientras esta pestaña siga abierta y tendrás que pegarlo de nuevo la próxima vez.")
               )
             ),
-            cloudSync.error && React.createElement("p", { className: "text-xs text-red-400" }, cloudSync.error),
+            cloudSync.error && React.createElement("p", { role: "alert", className: "text-xs text-red-400" }, cloudSync.error),
             React.createElement(
               "div",
               { className: "flex justify-end gap-2 mt-1" },
@@ -5349,7 +5349,7 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
             "w-full px-3 py-2 rounded-md border bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 " +
             (error ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-accent-500 focus:border-accent-500"),
         }),
-        error && React.createElement("p", { className: "text-xs text-red-400 mt-1" }, error)
+        error && React.createElement("p", { role: "alert", className: "text-xs text-red-400 mt-1" }, error)
       ),
       React.createElement(
         "div",
@@ -5743,7 +5743,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
             "w-full px-3 py-2 rounded-md border bg-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 " +
             (titleError ? "border-red-600 focus:ring-red-500 focus:border-red-500" : "border-slate-600 focus:ring-accent-500 focus:border-accent-500"),
         }),
-        titleError && React.createElement("p", { className: "text-xs text-red-400 mt-1" }, "Ingresa una descripción para guardar la falla.")
+        titleError && React.createElement("p", { role: "alert", className: "text-xs text-red-400 mt-1" }, "Ingresa una descripción para guardar la falla.")
       ),
       React.createElement(
         "div",

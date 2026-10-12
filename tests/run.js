@@ -7,5 +7,6 @@ require("./v12.test.js");
 require("./v13.test.js");
 require("./v14.test.js");
 require("./v15.test.js");
+require("./v16.test.js");
 const { runAll } = require("./lib");
 runAll(process.argv[2]).then((ok) => process.exit(ok ? 0 : 1));
