@@ -4,6 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Mis DualSense — Registro de fallas</title>
+<meta name="description" content="Registro personal de fallas, reparaciones y garantía de mandos DualSense de PS5. Funciona sin conexión y guarda todo en el dispositivo." />
+<meta property="og:title" content="Mis DualSense" />
+<meta property="og:description" content="Registro personal de fallas, reparaciones y garantía de mandos DualSense de PS5." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="icons/icon-512.png" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Mis DualSense" />
+<meta name="twitter:description" content="Registro personal de fallas, reparaciones y garantía de mandos DualSense de PS5." />
+<meta name="twitter:image" content="icons/icon-512.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
@@ -2802,7 +2811,7 @@ function DualSenseTracker() {
                   React.createElement(
                     "span",
                     { className: "relative inline-block w-5 h-5" },
-                    React.createElement(Icon, { name: "settings", className: "w-5 h-5 block" }),
+                    React.createElement(Icon, { name: "settings", className: "w-5 h-5 block", "aria-hidden": "true" }),
                     (hasUnsavedExport || (cloudSync.connected && cloudSync.status === "syncing")) &&
                       React.createElement("span", {
                         className: "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-400 ring-2 ring-slate-900",
@@ -2907,7 +2916,7 @@ function DualSenseTracker() {
                         ? "border-accent-400 text-accent-300"
                         : "border-transparent text-slate-500 hover:text-slate-300"),
                   },
-                  React.createElement(Icon, { name: tab.icon, className: "w-3.5 h-3.5" }),
+                  React.createElement(Icon, { name: tab.icon, className: "w-3.5 h-3.5", "aria-hidden": "true" }),
                   tab.label
                 )
               )
@@ -2940,7 +2949,7 @@ function DualSenseTracker() {
                       className:
                         "flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md bg-accent-600 text-white text-sm font-medium hover:bg-accent-500 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-400",
                     },
-                    React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
+                    React.createElement(Icon, { name: "plus", className: "w-4 h-4", "aria-hidden": "true" }),
                     "Nuevo mando"
                   )
                 ),
@@ -3368,7 +3377,7 @@ function SearchInput({ value, onChange, placeholder, ariaLabel, inputRef }) {
           "aria-label": "Limpiar búsqueda",
           className: "absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-200 transition-colors",
         },
-        React.createElement(Icon, { name: "x", className: "w-3.5 h-3.5" })
+        React.createElement(Icon, { name: "x", className: "w-3.5 h-3.5", "aria-hidden": "true" })
       )
   );
 }
@@ -3380,7 +3389,7 @@ function EmptyState({ onAdd }) {
     React.createElement(
       "div",
       { className: "w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center mb-4" },
-      React.createElement(Icon, { name: "gamepad", className: "w-5 h-5 text-slate-500" })
+      React.createElement(Icon, { name: "gamepad", className: "w-5 h-5 text-slate-500", "aria-hidden": "true" })
     ),
     React.createElement("h3", { className: "text-sm font-medium text-slate-200 mb-1" }, "Todavía no tienes mandos guardados"),
     React.createElement(
@@ -3391,7 +3400,7 @@ function EmptyState({ onAdd }) {
     React.createElement(
       "button",
       { type: "button", onClick: onAdd, className: "flex items-center gap-1.5 px-4 py-2 rounded-md bg-accent-600 text-white text-sm font-medium hover:bg-accent-500 transition-colors" },
-      React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
+      React.createElement(Icon, { name: "plus", className: "w-4 h-4", "aria-hidden": "true" }),
       "Agregar primer mando"
     )
   );
@@ -3888,7 +3897,7 @@ function ControllerMenu({ isOpen, mode, onToggle, onEdit, onDeleteRequest, onCon
     React.createElement(
       "button",
       { type: "button", onClick: onToggle, title: "Editar mando", "aria-label": "Editar mando", className: "p-1.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors" },
-      React.createElement(Icon, { name: "pencil", className: "w-3.5 h-3.5" })
+      React.createElement(Icon, { name: "pencil", className: "w-3.5 h-3.5", "aria-hidden": "true" })
     ),
     isOpen &&
       React.createElement(
@@ -3912,13 +3921,13 @@ function ControllerMenu({ isOpen, mode, onToggle, onEdit, onDeleteRequest, onCon
               React.createElement(
                 "button",
                 { type: "button", onClick: onEdit, className: "w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-slate-600 transition-colors" },
-                React.createElement(Icon, { name: "pencil", className: "w-3 h-3" }),
+                React.createElement(Icon, { name: "pencil", className: "w-3 h-3", "aria-hidden": "true" }),
                 " Editar"
               ),
               React.createElement(
                 "button",
                 { type: "button", onClick: onDeleteRequest, className: "w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-900 transition-colors" },
-                React.createElement(Icon, { name: "trash2", className: "w-3 h-3" }),
+                React.createElement(Icon, { name: "trash2", className: "w-3 h-3", "aria-hidden": "true" }),
                 " Eliminar"
               )
             )
@@ -4060,7 +4069,7 @@ const ControllerCard = React.memo(function ControllerCard({
                   "font-label inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 text-xs border rounded " +
                   (warrantyLevel === "expired" ? "text-red-400 border-red-700 bg-red-900" : "text-amber-400 border-amber-700 bg-amber-900"),
               },
-              React.createElement(Icon, { name: "bell", className: "w-2.5 h-2.5" }),
+              React.createElement(Icon, { name: "bell", className: "w-2.5 h-2.5", "aria-hidden": "true" }),
               warrantyLevel === "expired" ? "Garantía vencida" : "Garantía por vencer"
             ),
           chips.map((chip) =>
@@ -4093,7 +4102,7 @@ const ControllerCard = React.memo(function ControllerCard({
               "aria-label": controller.favorite ? "Quitar de favoritos" : "Marcar como favorito",
               className: "p-1.5 rounded hover:bg-slate-700 transition-colors " + (controller.favorite ? "text-amber-400 hover:text-amber-300" : "text-slate-500 hover:text-slate-200"),
             },
-            React.createElement(Icon, { name: "star", className: "w-3.5 h-3.5", fill: controller.favorite ? "currentColor" : "none" })
+            React.createElement(Icon, { name: "star", className: "w-3.5 h-3.5", fill: controller.favorite ? "currentColor" : "none", "aria-hidden": "true" })
           ),
           React.createElement(ControllerMenu, {
             isOpen: isMenuOpen,
@@ -4145,7 +4154,7 @@ const ControllerCard = React.memo(function ControllerCard({
                 "aria-label": "Mover hacia arriba",
                 className: "p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
               },
-              React.createElement(Icon, { name: "chevronUp", className: "w-4 h-4" })
+              React.createElement(Icon, { name: "chevronUp", className: "w-4 h-4", "aria-hidden": "true" })
             ),
             React.createElement(
               "button",
@@ -4157,10 +4166,10 @@ const ControllerCard = React.memo(function ControllerCard({
                 "aria-label": "Mover hacia abajo",
                 className: "p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
               },
-              React.createElement(Icon, { name: "chevronDown", className: "w-4 h-4" })
+              React.createElement(Icon, { name: "chevronDown", className: "w-4 h-4", "aria-hidden": "true" })
             )
           )
-        : React.createElement(Icon, { name: "chevronRight", className: "w-4 h-4 text-slate-600" })
+        : React.createElement(Icon, { name: "chevronRight", className: "w-4 h-4 text-slate-600", "aria-hidden": "true" })
     )
   );
 });
@@ -4200,7 +4209,7 @@ const IssueSearchResultCard = React.memo(function IssueSearchResultCard({ issue,
         React.createElement(
           "span",
           { className: "font-label inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border border-red-700 text-red-300 bg-red-900 rounded-sm" },
-          React.createElement(Icon, { name: "flag", className: "w-2.5 h-2.5", fill: "currentColor" }),
+          React.createElement(Icon, { name: "flag", className: "w-2.5 h-2.5", fill: "currentColor", "aria-hidden": "true" }),
           "Urgente"
         )
     ),
@@ -4220,7 +4229,7 @@ const IssueSearchResultCard = React.memo(function IssueSearchResultCard({ issue,
           React.createElement(
             "span",
             { key: tag, className: "font-label inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
-            React.createElement(Icon, { name: "tag", className: "w-2.5 h-2.5" }),
+            React.createElement(Icon, { name: "tag", className: "w-2.5 h-2.5", "aria-hidden": "true" }),
             tag
           )
         )
@@ -4233,7 +4242,7 @@ const IssueSearchResultCard = React.memo(function IssueSearchResultCard({ issue,
             "font-label text-xs flex items-center gap-1 " +
             (reminderUrgency(issue.reminder) === "overdue" ? "text-red-400" : reminderUrgency(issue.reminder) === "today" ? "text-amber-400" : "text-slate-500"),
         },
-        React.createElement(Icon, { name: "bell", className: "w-3 h-3" }),
+        React.createElement(Icon, { name: "bell", className: "w-3 h-3", "aria-hidden": "true" }),
         "Recordatorio: ",
         formatDate(issue.reminder)
       )
@@ -4378,7 +4387,7 @@ function ControllerDetail({
     React.createElement(
       "button",
       { type: "button", onClick: onBack, className: "flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors mb-6" },
-      React.createElement(Icon, { name: "arrowLeft", className: "w-4 h-4" }),
+      React.createElement(Icon, { name: "arrowLeft", className: "w-4 h-4", "aria-hidden": "true" }),
       "Volver"
     ),
     React.createElement(
@@ -4440,7 +4449,7 @@ function ControllerDetail({
               "aria-label": controller.favorite ? "Quitar de favoritos" : "Marcar como favorito",
               className: "p-1.5 rounded hover:bg-slate-700 transition-colors " + (controller.favorite ? "text-amber-400 hover:text-amber-300" : "text-slate-500 hover:text-slate-200"),
             },
-            React.createElement(Icon, { name: "star", className: "w-3.5 h-3.5", fill: controller.favorite ? "currentColor" : "none" })
+            React.createElement(Icon, { name: "star", className: "w-3.5 h-3.5", fill: controller.favorite ? "currentColor" : "none", "aria-hidden": "true" })
           ),
           React.createElement(ControllerMenu, {
             isOpen: isMenuOpen,
@@ -4472,7 +4481,7 @@ function ControllerDetail({
                 "font-label text-xs flex items-center gap-1 " +
                 (garantiaUrgency === "overdue" ? "text-red-400" : garantiaUrgency === "today" ? "text-amber-400" : "text-slate-400"),
             },
-            React.createElement(Icon, { name: "bell", className: "w-3 h-3" }),
+            React.createElement(Icon, { name: "bell", className: "w-3 h-3", "aria-hidden": "true" }),
             "Garantía hasta ",
             formatDate(controller.finGarantia),
             garantiaUrgency === "overdue" ? " (vencida)" : garantiaUrgency === "today" ? " (hoy)" : ""
@@ -4492,7 +4501,7 @@ function ControllerDetail({
             onClick: () => setShowTimeline((v) => !v),
             className: "flex items-center gap-1.5 font-label text-xs tracking-widest text-slate-500 hover:text-slate-300 uppercase transition-colors",
           },
-          React.createElement(Icon, { name: showTimeline ? "chevronDown" : "chevronRight", className: "w-3.5 h-3.5" }),
+          React.createElement(Icon, { name: showTimeline ? "chevronDown" : "chevronRight", className: "w-3.5 h-3.5", "aria-hidden": "true" }),
           "Línea de tiempo"
         ),
         showTimeline && React.createElement("div", { className: "mt-3" }, React.createElement(ControllerIssueTimeline, { issues: controller.issues }))
@@ -4503,7 +4512,7 @@ function ControllerDetail({
       React.createElement(
         "button",
         { type: "button", onClick: () => onAddIssue(controllerId), className: "flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-accent-600 text-white text-sm font-medium hover:bg-accent-500 transition-colors" },
-        React.createElement(Icon, { name: "plus", className: "w-4 h-4" }),
+        React.createElement(Icon, { name: "plus", className: "w-4 h-4", "aria-hidden": "true" }),
         "Agregar falla"
       ),
       React.createElement(
@@ -4513,7 +4522,7 @@ function ControllerDetail({
           onClick: () => onPrint(controllerId),
           className: "flex items-center gap-1.5 px-4 py-2.5 rounded-md border border-slate-600 text-slate-300 text-sm font-medium hover:bg-slate-700 transition-colors",
         },
-        React.createElement(Icon, { name: "printer", className: "w-4 h-4" }),
+        React.createElement(Icon, { name: "printer", className: "w-4 h-4", "aria-hidden": "true" }),
         "Exportar PDF"
       )
     ),
@@ -4723,7 +4732,7 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
           React.createElement(
             "span",
             { className: "font-label inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide border border-red-700 text-red-300 bg-red-900 rounded-sm" },
-            React.createElement(Icon, { name: "flag", className: "w-2.5 h-2.5", fill: "currentColor" }),
+            React.createElement(Icon, { name: "flag", className: "w-2.5 h-2.5", fill: "currentColor", "aria-hidden": "true" }),
             "Urgente"
           )
       ),
@@ -4748,7 +4757,7 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
             React.createElement(
               "span",
               { key: tag, className: "font-label inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-slate-400 bg-slate-700 border border-slate-600 rounded" },
-              React.createElement(Icon, { name: "tag", className: "w-2.5 h-2.5" }),
+              React.createElement(Icon, { name: "tag", className: "w-2.5 h-2.5", "aria-hidden": "true" }),
               tag
             )
           )
@@ -4770,7 +4779,7 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
               "font-label text-xs mt-1 flex items-center gap-1 " +
               (reminderUrgency(issue.reminder) === "overdue" ? "text-red-400" : reminderUrgency(issue.reminder) === "today" ? "text-amber-400" : "text-slate-500"),
           },
-          React.createElement(Icon, { name: "bell", className: "w-3 h-3" }),
+          React.createElement(Icon, { name: "bell", className: "w-3 h-3", "aria-hidden": "true" }),
           "Recordatorio: ",
           formatDate(issue.reminder),
           reminderUrgency(issue.reminder) === "overdue" ? " (vencido)" : "",
@@ -4804,7 +4813,7 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
                     "aria-label": "Mover hacia arriba",
                     className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
                   },
-                  React.createElement(Icon, { name: "chevronUp", className: "w-3.5 h-3.5" })
+                  React.createElement(Icon, { name: "chevronUp", className: "w-3.5 h-3.5", "aria-hidden": "true" })
                 ),
                 React.createElement(
                   "button",
@@ -4816,18 +4825,18 @@ const IssueCard = React.memo(function IssueCard({ issue, isConfirming, onEdit, o
                     "aria-label": "Mover hacia abajo",
                     className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed",
                   },
-                  React.createElement(Icon, { name: "chevronDown", className: "w-3.5 h-3.5" })
+                  React.createElement(Icon, { name: "chevronDown", className: "w-3.5 h-3.5", "aria-hidden": "true" })
                 )
               ),
             React.createElement(
               "button",
               { type: "button", title: "Editar falla", "aria-label": "Editar falla", onClick: () => onEdit(issue.id), className: "p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors" },
-              React.createElement(Icon, { name: "pencil", className: "w-3.5 h-3.5" })
+              React.createElement(Icon, { name: "pencil", className: "w-3.5 h-3.5", "aria-hidden": "true" })
             ),
             React.createElement(
               "button",
               { type: "button", title: "Eliminar falla", "aria-label": "Eliminar falla", onClick: () => onDelete(issue.id), className: "p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-900 transition-colors" },
-              React.createElement(Icon, { name: "trash2", className: "w-3.5 h-3.5" })
+              React.createElement(Icon, { name: "trash2", className: "w-3.5 h-3.5", "aria-hidden": "true" })
             )
           )
     )
@@ -4904,7 +4913,7 @@ function ModalShell({ title, titleClassName, onCancel, children }) {
         React.createElement(
           "button",
           { type: "button", onClick: onCancel, "aria-label": "Cerrar", className: "p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700" },
-          React.createElement(Icon, { name: "x", className: "w-4 h-4" })
+          React.createElement(Icon, { name: "x", className: "w-4 h-4", "aria-hidden": "true" })
         )
       ),
       children
@@ -5007,8 +5016,9 @@ function SyncModal({ cloudSync, onConnect, onSyncNow, onDisconnect, onClose }) {
             React.createElement(
               "div",
               null,
-              React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Token de GitHub"),
+              React.createElement("label", { htmlFor: "sync-token", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Token de GitHub"),
               React.createElement("input", {
+                id: "sync-token",
                 type: "password",
                 autoFocus: true,
                 value: token,
@@ -5114,10 +5124,10 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                 "aria-expanded": exportOpen,
                 className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
               },
-              React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
+              React.createElement(Icon, { name: "download", className: "w-4 h-4", "aria-hidden": "true" }),
               "Exportar",
               showExportBadge && React.createElement("span", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0", "aria-hidden": "true" }),
-              React.createElement(Icon, { name: exportOpen ? "chevronUp" : "chevronDown", className: "w-4 h-4 ml-auto text-slate-500" })
+              React.createElement(Icon, { name: exportOpen ? "chevronUp" : "chevronDown", className: "w-4 h-4 ml-auto text-slate-500", "aria-hidden": "true" })
             ),
             exportOpen &&
               React.createElement(
@@ -5131,7 +5141,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                     onClick: onExportJSON,
                     className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
                   },
-                  React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
+                  React.createElement(Icon, { name: "download", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Exportar JSON",
                   showExportBadge && React.createElement("span", { className: "font-label text-xs text-amber-400 ml-auto" }, "cambios sin exportar")
                 ),
@@ -5143,7 +5153,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                     onClick: onExportCSV,
                     className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
                   },
-                  React.createElement(Icon, { name: "download", className: "w-4 h-4" }),
+                  React.createElement(Icon, { name: "download", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Exportar CSV",
                   showExportBadge && React.createElement("span", { className: "font-label text-xs text-amber-400 ml-auto" }, "cambios sin exportar")
                 )
@@ -5160,9 +5170,9 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                 "aria-expanded": importOpen,
                 className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
               },
-              React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
+              React.createElement(Icon, { name: "upload", className: "w-4 h-4", "aria-hidden": "true" }),
               "Importar",
-              React.createElement(Icon, { name: importOpen ? "chevronUp" : "chevronDown", className: "w-4 h-4 ml-auto text-slate-500" })
+              React.createElement(Icon, { name: importOpen ? "chevronUp" : "chevronDown", className: "w-4 h-4 ml-auto text-slate-500", "aria-hidden": "true" })
             ),
             importOpen &&
               React.createElement(
@@ -5175,7 +5185,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                     onClick: onImportJSON,
                     className: "w-full flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
                   },
-                  React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
+                  React.createElement(Icon, { name: "upload", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Importar JSON"
                 ),
                 React.createElement(
@@ -5185,7 +5195,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                     onClick: onImportCSV,
                     className: "w-full flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
                   },
-                  React.createElement(Icon, { name: "upload", className: "w-4 h-4" }),
+                  React.createElement(Icon, { name: "upload", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Importar CSV"
                 )
               )
@@ -5246,7 +5256,7 @@ function VisibilityToggle({ visible, onToggle, label }) {
       "aria-pressed": visible,
       className: "p-1 -m-1 rounded transition-colors " + (visible ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-400"),
     },
-    React.createElement(Icon, { name: visible ? "eye" : "eyeOff", className: "w-3.5 h-3.5" })
+    React.createElement(Icon, { name: visible ? "eye" : "eyeOff", className: "w-3.5 h-3.5", "aria-hidden": "true" })
   );
 }
 
@@ -5321,8 +5331,9 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Apodo / identificador"),
+        React.createElement("label", { htmlFor: "mando-nombre", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Apodo / identificador"),
         React.createElement("input", {
+          id: "mando-nombre",
           type: "text",
           autoFocus: true,
           value: nombre,
@@ -5343,11 +5354,12 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Color"),
+        React.createElement("label", { htmlFor: "mando-color", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Color"),
         React.createElement(
           "div",
           { className: "flex gap-2" },
           React.createElement("input", {
+            id: "mando-color",
             type: "text",
             list: "dualsense-color-suggestions",
             value: color,
@@ -5360,6 +5372,7 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
             value: colorHex,
             onChange: (e) => setColorHex(e.target.value),
             title: "Color exacto para la vista previa",
+            "aria-label": "Color exacto para la vista previa",
             className: "rounded-md border border-slate-600 bg-slate-700 p-1 cursor-pointer",
             style: { width: "44px", height: "40px" },
           })
@@ -5374,10 +5387,11 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Estado del mando"),
+        React.createElement("label", { htmlFor: "mando-estado", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Estado del mando"),
         React.createElement(
           "select",
           {
+            id: "mando-estado",
             value: estado,
             onChange: (e) => setEstado(e.target.value),
             className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
@@ -5415,12 +5429,13 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
           React.createElement(
             "div",
             { className: "flex items-center justify-between gap-2 mb-1.5" },
-            React.createElement("label", { className: "font-label text-xs text-slate-500 uppercase tracking-wide" }, "Consola de origen (opcional)"),
+            React.createElement("label", { htmlFor: "mando-consola-origen", className: "font-label text-xs text-slate-500 uppercase tracking-wide" }, "Consola de origen (opcional)"),
             React.createElement(VisibilityToggle, { visible: origenVisible, onToggle: () => setOrigenVisible((v) => !v), label: "consola de origen" })
           ),
           React.createElement(
             "select",
             {
+              id: "mando-consola-origen",
               value: consolaOrigen,
               onChange: (e) => setConsolaOrigen(e.target.value),
               className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
@@ -5434,12 +5449,13 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
           React.createElement(
             "div",
             { className: "flex items-center justify-between gap-2 mb-1.5" },
-            React.createElement("label", { className: "font-label text-xs text-slate-500 uppercase tracking-wide" }, "Consola actual (opcional)"),
+            React.createElement("label", { htmlFor: "mando-consola-actual", className: "font-label text-xs text-slate-500 uppercase tracking-wide" }, "Consola actual (opcional)"),
             React.createElement(VisibilityToggle, { visible: actualVisible, onToggle: () => setActualVisible((v) => !v), label: "consola actual" })
           ),
           React.createElement(
             "select",
             {
+              id: "mando-consola-actual",
               value: consolaActual,
               onChange: (e) => setConsolaActual(e.target.value),
               className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
@@ -5451,10 +5467,11 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Edición (opcional)"),
+        React.createElement("label", { htmlFor: "mando-edicion", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Edición (opcional)"),
         React.createElement(
           "select",
           {
+            id: "mando-edicion",
             value: edicionTipo,
             onChange: (e) => setEdicionTipo(e.target.value),
             className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
@@ -5478,8 +5495,9 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
         React.createElement(
           "div",
           null,
-          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Precio de compra (opcional)"),
+          React.createElement("label", { htmlFor: "mando-precio-compra", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Precio de compra (opcional)"),
           React.createElement("input", {
+            id: "mando-precio-compra",
             type: "number",
             inputMode: "decimal",
             min: "0",
@@ -5493,8 +5511,9 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
         React.createElement(
           "div",
           null,
-          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Fecha de compra (opcional)"),
+          React.createElement("label", { htmlFor: "mando-fecha-compra", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Fecha de compra (opcional)"),
           React.createElement("input", {
+            id: "mando-fecha-compra",
             type: "date",
             value: fechaCompraValue,
             onChange: (e) => setFechaCompraValue(e.target.value),
@@ -5505,11 +5524,12 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Fin de garantía (opcional)"),
+        React.createElement("label", { htmlFor: "mando-fin-garantia", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Fin de garantía (opcional)"),
         React.createElement(
           "div",
           { className: "flex gap-2" },
           React.createElement("input", {
+            id: "mando-fin-garantia",
             type: "date",
             value: finGarantiaValue,
             onChange: (e) => {
@@ -5532,8 +5552,9 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Número de serie (opcional)"),
+        React.createElement("label", { htmlFor: "mando-numero-serie", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Número de serie (opcional)"),
         React.createElement("input", {
+          id: "mando-numero-serie",
           type: "text",
           value: numeroSerie,
           onChange: (e) => {
@@ -5548,8 +5569,9 @@ function ControllerModal({ mode, initial, existingControllers, onCancel, onSave 
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Notas (opcional)"),
+        React.createElement("label", { htmlFor: "mando-notas", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Notas (opcional)"),
         React.createElement("textarea", {
+          id: "mando-notas",
           value: notes,
           onChange: (e) => setNotes(e.target.value),
           placeholder: "Número de serie, detalles adicionales...",
@@ -5703,8 +5725,9 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Descripción de la falla"),
+        React.createElement("label", { htmlFor: "falla-titulo", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Descripción de la falla"),
         React.createElement("input", {
+          id: "falla-titulo",
           ref: titleInputRef,
           autoFocus: !isConfirming,
           value: titulo,
@@ -5725,10 +5748,11 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Tipo de falla"),
+        React.createElement("label", { htmlFor: "falla-tipo", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Tipo de falla"),
         React.createElement(
           "select",
           {
+            id: "falla-tipo",
             value: tipo,
             onChange: (e) => setTipo(e.target.value),
             className: "w-full px-3 py-2 rounded-md border border-slate-600 bg-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500",
@@ -5739,10 +5763,10 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Estado"),
+        React.createElement("label", { id: "falla-estado-label", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Estado"),
         React.createElement(
           "div",
-          { className: "grid grid-cols-2 gap-2" },
+          { className: "grid grid-cols-2 gap-2", role: "group", "aria-labelledby": "falla-estado-label" },
           Object.entries(STATUS_META).map(([key, meta]) =>
             React.createElement(
               "button",
@@ -5768,14 +5792,15 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
             "w-full flex items-center justify-center gap-2 py-2 rounded-md border text-xs font-medium font-label uppercase tracking-wide transition-colors " +
             (urgente ? "bg-red-900 text-red-300 border-red-700" : "border-slate-600 text-slate-500 hover:border-slate-500"),
         },
-        React.createElement(Icon, { name: "flag", className: "w-3.5 h-3.5", fill: urgente ? "currentColor" : "none" }),
+        React.createElement(Icon, { name: "flag", className: "w-3.5 h-3.5", fill: urgente ? "currentColor" : "none", "aria-hidden": "true" }),
         urgente ? "Marcada como urgente" : "Marcar como urgente"
       ),
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Costo de la reparación (opcional)"),
+        React.createElement("label", { htmlFor: "falla-costo", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Costo de la reparación (opcional)"),
         React.createElement("input", {
+          id: "falla-costo",
           type: "number",
           inputMode: "decimal",
           min: "0",
@@ -5789,8 +5814,9 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Etiquetas (opcional)"),
+        React.createElement("label", { htmlFor: "falla-etiquetas", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Etiquetas (opcional)"),
         React.createElement("input", {
+          id: "falla-etiquetas",
           value: tagsText,
           onChange: (e) => setTagsText(e.target.value),
           placeholder: "bajo garantía, service, comprado 2024...",
@@ -5801,11 +5827,12 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Recordatorio (opcional)"),
+        React.createElement("label", { htmlFor: "falla-recordatorio", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Recordatorio (opcional)"),
         React.createElement(
           "div",
           { className: "flex gap-2" },
           React.createElement("input", {
+            id: "falla-recordatorio",
             type: "date",
             value: reminderValue,
             onChange: (e) => {
@@ -5827,8 +5854,9 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
       React.createElement(
         "div",
         null,
-        React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Notas (opcional)"),
+        React.createElement("label", { htmlFor: "falla-notas", className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Notas (opcional)"),
         React.createElement("textarea", {
+          id: "falla-notas",
           value: notes,
           onChange: (e) => setNotes(e.target.value),
           placeholder: "Contexto, qué tan seguido pasa, qué probaste ya...",
@@ -5840,7 +5868,7 @@ function IssueModal({ mode, initial, existingIssues, onCancel, onSave }) {
         React.createElement(
           "div",
           null,
-          React.createElement("label", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Historial de estados"),
+          React.createElement("p", { className: "font-label block text-xs text-slate-500 uppercase tracking-wide mb-1.5" }, "Historial de estados"),
           React.createElement(
             "div",
             { className: "flex flex-col gap-1.5 bg-slate-800 border border-slate-600 rounded-md p-2.5 max-h-32 overflow-y-auto" },
