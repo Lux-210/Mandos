@@ -2479,6 +2479,19 @@ function DualSenseTracker() {
     };
   }, []);
 
+  // Cierra de una vez todos los modales/menús abiertos. La usan tanto la
+  // tecla Escape como el botón/gesto "Atrás" del navegador (ver más abajo).
+  const closeAllModals = useCallback(() => {
+    setIssueModal(null);
+    setControllerModal(null);
+    setOpenMenu(null);
+    setConfirmDeleteIssue(null);
+    clearTimeout(confirmDeleteIssueTimerRef.current);
+    setImportState(null);
+    setSyncModalOpen(false);
+    setSettingsModalOpen(false);
+  }, []);
+
   useEffect(() => {
     function isTypingContext() {
       const el = document.activeElement;
@@ -2491,14 +2504,7 @@ function DualSenseTracker() {
     }
     function onKeyDown(e) {
       if (e.key === "Escape") {
-        setIssueModal(null);
-        setControllerModal(null);
-        setOpenMenu(null);
-        setConfirmDeleteIssue(null);
-        clearTimeout(confirmDeleteIssueTimerRef.current);
-        setImportState(null);
-        setSyncModalOpen(false);
-        setSettingsModalOpen(false);
+        closeAllModals();
         return;
       }
       // Los atajos de una sola tecla no deben interferir mientras se escribe
@@ -2536,7 +2542,43 @@ function DualSenseTracker() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [controllerModal, issueModal, syncModalOpen, importState, settingsModalOpen, activeTab, openControllerId, handleOpenController]);
+  }, [controllerModal, issueModal, syncModalOpen, importState, settingsModalOpen, activeTab, openControllerId, handleOpenController, closeAllModals]);
+
+  // Botón/gesto "Atrás" del navegador: clave en una PWA instalada en Android,
+  // donde es la forma natural de intentar cerrar lo que está en pantalla. Sin
+  // esto, "Atrás" con un modal abierto sale directo de la app en vez de
+  // cerrarlo. Al abrir el primer modal se agrega una entrada de historial de
+  // relleno; si el modal se cierra por cualquier otro medio (botón Cerrar,
+  // Escape, Guardar), esa misma entrada se retira con history.back() para no
+  // dejar un "Atrás" fantasma que no haga nada visible la próxima vez.
+  const modalHistoryPushedRef = useRef(false);
+  useEffect(() => {
+    const open = !!(controllerModal || issueModal || syncModalOpen || importState || settingsModalOpen);
+    if (open && !modalHistoryPushedRef.current) {
+      modalHistoryPushedRef.current = true;
+      try {
+        history.pushState({ dualsenseModal: true }, "");
+      } catch (e) {}
+    } else if (!open && modalHistoryPushedRef.current) {
+      modalHistoryPushedRef.current = false;
+      try {
+        history.back();
+      } catch (e) {}
+    }
+  }, [controllerModal, issueModal, syncModalOpen, importState, settingsModalOpen]);
+
+  useEffect(() => {
+    function onPopState() {
+      // Si la entrada que se acaba de consumir era la nuestra, cerramos el
+      // modal en vez de dejar que el navegador siga saliendo de la app.
+      if (modalHistoryPushedRef.current) {
+        modalHistoryPushedRef.current = false;
+        closeAllModals();
+      }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [closeAllModals]);
 
   useEffect(() => {
     if (!dataLoaded) return;
