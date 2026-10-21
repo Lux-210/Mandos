@@ -401,10 +401,17 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
      exportar", el resaltado del color de acento elegido en Configuración,
      los separadores y la respiración entre secciones, el botón "ojo" de
      las tarjetas, el punto de
-     aviso sobre el ícono de Configuración, y el desplazamiento del modal de
-     edición cuando el contenido no entra en la pantalla. */
+     aviso sobre el ícono de Configuración, el desplazamiento del modal de
+     edición cuando el contenido no entra en la pantalla, y la barra de "hay
+     una versión nueva" (antes quedaba mal ubicada y con el botón "Recargar"
+     invisible porque le faltaban estas cuatro clases). */
   .-m-1 { margin: -.25rem; }
   .-right-0\.5 { right: -.125rem; }
+  .bg-white\/15 { background-color: rgb(255 255 255 / .15); }
+  .hover\:bg-white\/25:hover { background-color: rgb(255 255 255 / .25); }
+  .inset-x-0 { left: 0; right: 0; }
+  .shadow-lg { --tw-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1); --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color); box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow); }
+  .top-0 { top: 0; }
   .-top-0\.5 { top: -.125rem; }
   .bg-slate-600 { --tw-bg-opacity: 1; background-color: rgb(71 85 105 / var(--tw-bg-opacity, 1)); }
   .border-t { border-top-width: 1px; }
@@ -758,6 +765,13 @@ const STATUS_FILTERS = [
   { value: "all", label: "Todas" },
   ...Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
 ];
+
+// Versión de la app, mostrada en Configuración para saber si ya se actualizó.
+// Debe subir junto con CACHE_NAME en service-worker.js (son cosas distintas:
+// esto es solo el texto que ve la persona, CACHE_NAME es lo que usa el
+// navegador para invalidar el caché), pero deben quedar siempre con el mismo
+// número para no confundir a quien compare ambos archivos.
+const APP_VERSION = "v20";
 
 const STORAGE_KEY = "mis-dualsense-data-v1";
 const GH_TOKEN_KEY = "mis-dualsense-gh-token";
@@ -1376,11 +1390,17 @@ function csvIsTrue(value) {
   return /^(si|s|yes|y|true|verdadero|1|x)$/.test(normalizeText(value).trim());
 }
 
-// Busca "value" entre las opciones ignorando mayúsculas y tildes.
+// Busca "value" entre las opciones ignorando mayúsculas y tildes. Nota: antes
+// filtraba "option &&" y devolvía "found || null", lo que hacía que la opción
+// vacía ("" = "Sin especificar", una opción válida en CONSOLE_ORIGEN_OPTIONS)
+// nunca pudiera reconocerse a propósito y, aunque se reconociera, "" (falsy)
+// terminara convertida en null igual. Hoy ningún llamador llega a probar ese
+// caso (consoleOf corta antes con un valor vacío), pero la función quedaba
+// rota para cualquier opción vacía si algo cambiara más adelante.
 function csvCanonicalOption(value, options) {
   const target = normalizeText(value).trim();
-  const found = options.find((option) => option && normalizeText(option) === target);
-  return found || null;
+  const found = options.find((option) => normalizeText(option) === target);
+  return found !== undefined ? found : null;
 }
 
 // Busca la clave de un objeto de estados por su etiqueta visible o por la clave.
@@ -2468,14 +2488,21 @@ function DualSenseTracker() {
       if (!dataLoadedRef.current) return;
       saveControllersToStorage(controllersRef.current).catch(() => {});
     }
+    // "onVisibilityFlush" se declara aparte (en vez de un closure anónimo
+    // inline) para poder quitarlo en la limpieza: dejado sin quitar, seguiría
+    // vivo en "document" después de que este componente se desmonte (por
+    // ejemplo, si el ErrorBoundary de más arriba atrapa un error de render),
+    // guardando datos ya obsoletos cada vez que cambiara la visibilidad.
+    function onVisibilityFlush() {
+      if (document.visibilityState === "hidden") flush();
+    }
     window.addEventListener("beforeunload", flush);
     window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") flush();
-    });
+    document.addEventListener("visibilitychange", onVisibilityFlush);
     return () => {
       window.removeEventListener("beforeunload", flush);
       window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityFlush);
     };
   }, []);
 
@@ -5275,6 +5302,11 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
           )
         ),
         React.createElement("p", { className: "text-xs text-slate-500 mt-1.5" }, "Cada pocos minutos se sincroniza sola; también puedes forzarla desde aquí.")
+      ),
+      React.createElement(
+        "div",
+        { className: "border-t border-slate-700 pt-4" },
+        React.createElement("p", { className: "text-xs text-slate-500" }, "Mis DualSense ", APP_VERSION)
       ),
       React.createElement(
         "div",
