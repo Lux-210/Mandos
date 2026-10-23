@@ -11,5 +11,6 @@ require("./v16.test.js");
 require("./v17.test.js");
 require("./v18.test.js");
 require("./v19.test.js");
+require("./v20.test.js");
 const { runAll } = require("./lib");
 runAll(process.argv[2]).then((ok) => process.exit(ok ? 0 : 1));

@@ -64,7 +64,14 @@ test("interfaz: avisa si el nombre y color ya existen, y se puede guardar igual 
     // "Revisar datos" vuelve al formulario sin haber guardado.
     d.click(d.buttons("Revisar datos")[0]);
     await d.waitFor(() => d.buttons("Guardar").length === 1, { message: "vuelve a mostrarse el botón Guardar" });
-    assert.strictEqual((await d.readIDB("controllers")).length, 1, "todavía no se guardó el segundo mando");
+    // El guardado en IndexedDB tiene un pequeño debounce (ver mejora v21): se
+    // espera a que el primer mando esté guardado en vez de leer al toque,
+    // para no depender de que ya se haya cumplido la espera.
+    const stillOne = await d.waitFor(async () => {
+      const saved = await d.readIDB("controllers");
+      return saved && saved.length === 1 ? saved : false;
+    }, { message: "el primer mando sigue guardado (y todavía no el segundo)" });
+    assert.strictEqual(stillOne.length, 1, "todavía no se guardó el segundo mando");
 
     // Reintentar y esta vez confirmar "Guardar igual".
     d.click(d.buttons("Guardar")[0]);

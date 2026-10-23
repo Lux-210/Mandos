@@ -73,7 +73,16 @@ test("interfaz: eliminar un mando deja una marca y «Deshacer» la quita y lo re
       return t && !t.controllers[id] ? t : false;
     }, { message: "marca eliminada tras deshacer" });
     assert.deepStrictEqual(after.controllers, {});
-    const [restored] = await savedControllers(d);
+    // El guardado en IndexedDB ahora se agrupa con un pequeño debounce (ver
+    // mejora v21), así que no alcanza con esperar a que haya "al menos un
+    // mando guardado": eso ya era cierto desde antes de eliminarlo, y ese
+    // guardado anterior podría seguir siendo el último en IndexedDB mientras
+    // el debounce del guardado posterior a "Deshacer" todavía no se cumple.
+    // Se espera puntualmente a que lo guardado sea más nuevo que la marca.
+    const [restored] = await d.waitFor(async () => {
+      const saved = await idbControllers(d);
+      return saved && saved.length >= 1 && saved[0].updatedAt > tomb.controllers[id] ? saved : false;
+    }, { message: "el mando restaurado se guarda con una fecha más nueva que la marca" });
     assert.ok(restored.updatedAt > tomb.controllers[id], "el mando restaurado queda más nuevo que la marca");
   });
 });

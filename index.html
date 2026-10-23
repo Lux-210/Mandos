@@ -771,7 +771,7 @@ const STATUS_FILTERS = [
 // esto es solo el texto que ve la persona, CACHE_NAME es lo que usa el
 // navegador para invalidar el caché), pero deben quedar siempre con el mismo
 // número para no confundir a quien compare ambos archivos.
-const APP_VERSION = "v20";
+const APP_VERSION = "v21";
 
 const STORAGE_KEY = "mis-dualsense-data-v1";
 const GH_TOKEN_KEY = "mis-dualsense-gh-token";
@@ -2182,6 +2182,7 @@ function DualSenseTracker() {
   });
 
   const pushDebounceTimerRef = useRef(null);
+  const saveDebounceTimerRef = useRef(null);
   const isFirstMountForAutoPushRef = useRef(true);
   const confirmDeleteIssueTimerRef = useRef(null);
   const openMenuTimerRef = useRef(null);
@@ -2638,8 +2639,22 @@ function DualSenseTracker() {
   }, [printController]);
 
   useEffect(() => {
+    // Antes esto guardaba en IndexedDB en cada cambio de "controllers", sin
+    // agrupar nada: escribir una falla letra por letra mientras se tipea un
+    // título o una nota terminaba disparando una escritura completa del
+    // arreglo de mandos por cada tecla. Se agrupa con un pequeño debounce,
+    // igual que ya se hacía con la subida a la nube (más abajo). El guardado
+    // inmediato al ocultar la pestaña o cerrar la app (el efecto de más abajo
+    // que escucha "beforeunload"/"pagehide"/"visibilitychange") sigue
+    // guardando directamente desde controllersRef, así que ese caso no
+    // depende de este debounce y no se pierde nada al salir a mitad de la
+    // espera.
     if (!dataLoaded) return;
-    saveControllersToStorage(controllers);
+    clearTimeout(saveDebounceTimerRef.current);
+    saveDebounceTimerRef.current = setTimeout(() => {
+      saveControllersToStorage(controllersRef.current);
+    }, 600);
+    return () => clearTimeout(saveDebounceTimerRef.current);
   }, [controllers, dataLoaded]);
 
   useEffect(() => {
