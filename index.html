@@ -5206,7 +5206,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                 type: "button",
                 onClick: () => setExportOpen((v) => !v),
                 "aria-expanded": exportOpen,
-                className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+                className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors" + (exportOpen ? " bg-slate-700" : ""),
               },
               React.createElement(Icon, { name: "download", className: "w-4 h-4", "aria-hidden": "true" }),
               "Exportar",
@@ -5216,14 +5216,14 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
             exportOpen &&
               React.createElement(
                 "div",
-                { className: "flex flex-col gap-2 px-3 pb-3 pt-1 border-t border-slate-700" },
+                { className: "flex flex-col border-t border-slate-700" },
                 React.createElement(
                   "button",
                   {
                     type: "button",
                     disabled: !hasControllers,
                     onClick: onExportJSON,
-                    className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                    className: "w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
                   },
                   React.createElement(Icon, { name: "download", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Exportar JSON",
@@ -5235,7 +5235,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                     type: "button",
                     disabled: !hasControllers,
                     onClick: onExportCSV,
-                    className: "flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                    className: "w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-t border-slate-700",
                   },
                   React.createElement(Icon, { name: "download", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Exportar CSV",
@@ -5252,7 +5252,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                 type: "button",
                 onClick: () => setImportOpen((v) => !v),
                 "aria-expanded": importOpen,
-                className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+                className: "w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors" + (importOpen ? " bg-slate-700" : ""),
               },
               React.createElement(Icon, { name: "upload", className: "w-4 h-4", "aria-hidden": "true" }),
               "Importar",
@@ -5261,13 +5261,13 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
             importOpen &&
               React.createElement(
                 "div",
-                { className: "flex flex-col gap-2 px-3 pb-3 pt-1 border-t border-slate-700" },
+                { className: "flex flex-col border-t border-slate-700" },
                 React.createElement(
                   "button",
                   {
                     type: "button",
                     onClick: onImportJSON,
-                    className: "w-full flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+                    className: "w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
                   },
                   React.createElement(Icon, { name: "upload", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Importar JSON"
@@ -5277,7 +5277,7 @@ function SettingsModal({ accent, onChangeAccent, cloudSync, onOpenSync, hasContr
                   {
                     type: "button",
                     onClick: onImportCSV,
-                    className: "w-full flex items-center gap-2 px-3 py-2 rounded-md border border-slate-600 text-sm text-slate-200 hover:bg-slate-700 transition-colors",
+                    className: "w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors border-t border-slate-700",
                   },
                   React.createElement(Icon, { name: "upload", className: "w-4 h-4", "aria-hidden": "true" }),
                   "Importar CSV"
