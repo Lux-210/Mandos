@@ -447,28 +447,29 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     .sm\:block { display: block; }
   }
 
-  /* Barra de desplazamiento delgada y discreta (Dylan pidió algo similar a
-     la de este chat, sin el fondo oscuro/negro que pone por defecto el
-     navegador al usar colorScheme: dark). Se aplica en toda la app. */
+  /* Barra de desplazamiento casi invisible (como la de este chat de Claude):
+     en reposo apenas se nota, y solo se aclara un poco al pasar el cursor
+     sobre ella. Sin el fondo oscuro/negro que pone por defecto el navegador
+     al usar colorScheme: dark. Se aplica en toda la app. */
   html {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+    scrollbar-color: rgba(148, 163, 184, 0.15) transparent;
   }
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 7px;
+    height: 7px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(148, 163, 184, 0.35);
+    background-color: rgba(148, 163, 184, 0.15);
     border-radius: 9999px;
-    border: 3px solid transparent;
+    border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(148, 163, 184, 0.55);
+    background-color: rgba(148, 163, 184, 0.4);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
@@ -772,7 +773,7 @@ const STATUS_FILTERS = [
 // esto es solo el texto que ve la persona, CACHE_NAME es lo que usa el
 // navegador para invalidar el caché), pero deben quedar siempre con el mismo
 // número para no confundir a quien compare ambos archivos.
-const APP_VERSION = "v21";
+const APP_VERSION = "v22";
 
 const STORAGE_KEY = "mis-dualsense-data-v1";
 const GH_TOKEN_KEY = "mis-dualsense-gh-token";
